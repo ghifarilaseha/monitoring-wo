@@ -8,16 +8,15 @@ export default function LaporPage() {
   const router = useRouter();
   const [profile, setProfile] = useState(null);
   const [workOrders, setWorkOrders] = useState([]);
+  const [areas, setAreas] = useState([]);
+  const [instrumens, setInstrumens] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [tab, setTab] = useState('daftar'); // 'daftar' | 'buat'
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [submitting, setSubmitting] = useState(false);
 
-  const [report, setReport] = useState({
-    waktu_mulai: '',
-    waktu_selesai: '',
-    keterangan: '',
-    foto: null,
-  });
+  const [report, setReport] = useState({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto: null });
+  const [newWO, setNewWO] = useState({ area: '', mesin_instrument: '', deskripsi: '', kategori: '', prioritas: 'Medium' });
 
   useEffect(() => {
     init();
@@ -25,19 +24,16 @@ export default function LaporPage() {
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      router.push('/');
-      return;
-    }
+    if (!user) { router.push('/'); return; }
 
-    const { data: userProfile } = await supabase
-      .from('users')
-      .select('*')
-      .eq('auth_id', user.id)
-      .single();
-
+    const { data: userProfile } = await supabase.from('users').select('*').eq('auth_id', user.id).single();
     setProfile(userProfile);
     loadWorkOrders(userProfile.id);
+
+    const { data: areaData } = await supabase.from('master_area').select('*').order('nama');
+    setAreas(areaData || []);
+    const { data: instrumenData } = await supabase.from('master_instrumen').select('*').order('nama');
+    setInstrumens(instrumenData || []);
   }
 
   async function loadWorkOrders(picId) {
@@ -50,27 +46,47 @@ export default function LaporPage() {
     setWorkOrders(data || []);
   }
 
+  async function handleCreateWO(e) {
+    e.preventDefault();
+    setMsg({ type: '', text: '' });
+
+    const { data, error } = await supabase.from('work_orders').insert({
+      tanggal_rencana: new Date().toISOString().slice(0, 10),
+      area: newWO.area,
+      mesin_instrument: newWO.mesin_instrument,
+      deskripsi: newWO.deskripsi,
+      kategori: newWO.kategori,
+      prioritas: newWO.prioritas,
+      pic_id: profile.id,
+      sumber: 'tidak terencana',
+    }).select().single();
+
+    if (error) {
+      setMsg({ type: 'error', text: error.message });
+      return;
+    }
+
+    setMsg({ type: 'success', text: `WO ${data.wo_code} berhasil dibuat. Silakan lapor dari tab Daftar WO.` });
+    setNewWO({ area: '', mesin_instrument: '', deskripsi: '', kategori: '', prioritas: 'Medium' });
+    setTab('daftar');
+    loadWorkOrders(profile.id);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setMsg({ type: '', text: '' });
     setSubmitting(true);
 
     let foto_url = null;
-
     if (report.foto) {
       const fileExt = report.foto.name.split('.').pop();
       const filePath = `${selected.wo_code}-${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('bukti-foto')
-        .upload(filePath, report.foto);
-
+      const { error: uploadError } = await supabase.storage.from('bukti-foto').upload(filePath, report.foto);
       if (uploadError) {
         setMsg({ type: 'error', text: `Gagal upload foto: ${uploadError.message}` });
         setSubmitting(false);
         return;
       }
-
       const { data: publicUrlData } = supabase.storage.from('bukti-foto').getPublicUrl(filePath);
       foto_url = publicUrlData.publicUrl;
     }
@@ -90,10 +106,7 @@ export default function LaporPage() {
       return;
     }
 
-    await supabase
-      .from('work_orders')
-      .update({ status_wo: 'Selesai' })
-      .eq('id', selected.id);
+    await supabase.from('work_orders').update({ status_wo: 'Selesai' }).eq('id', selected.id);
 
     setMsg({ type: 'success', text: `Laporan untuk ${selected.wo_code} berhasil dikirim.` });
     setSelected(null);
@@ -116,15 +129,23 @@ export default function LaporPage() {
         <button className="secondary" onClick={handleLogout}>Keluar</button>
       </div>
 
+      {!selected && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button className={tab === 'daftar' ? '' : 'secondary'} onClick={() => setTab('daftar')}>Daftar WO</button>
+          <button className={tab === 'buat' ? '' : 'secondary'} onClick={() => setTab('buat')}>+ Buat WO (tidak terencana)</button>
+        </div>
+      )}
+
       {msg.text && <div className={msg.type}>{msg.text}</div>}
 
-      {!selected && (
+      {!selected && tab === 'daftar' && (
         <div className="card">
           <h2>Work order kamu ({workOrders.length})</h2>
           {workOrders.length === 0 && <p style={{ color: '#777' }}>Tidak ada work order yang perlu dilaporkan.</p>}
           {workOrders.map(wo => (
             <div key={wo.id} className="wo-item" onClick={() => setSelected(wo)}>
               <b>{wo.wo_code}</b> — {wo.deskripsi}
+              {wo.sumber === 'tidak terencana' && <span className="badge medium" style={{ marginLeft: 8 }}>Tidak terencana</span>}
               <div style={{ marginTop: 6 }}>
                 <span className={`badge ${wo.prioritas?.toLowerCase()}`}>{wo.prioritas}</span>
                 <span style={{ fontSize: 13, color: '#666', marginLeft: 8 }}>{wo.area} · {wo.tanggal_rencana}</span>
@@ -134,10 +155,44 @@ export default function LaporPage() {
         </div>
       )}
 
+      {!selected && tab === 'buat' && (
+        <div className="card">
+          <h2>Buat WO untuk kerjaan tidak terencana</h2>
+          <p style={{ fontSize: 13, color: '#777', marginTop: -8 }}>Kode WO dibuat otomatis. WO ini akan langsung tercatat sebagai milikmu.</p>
+          <form onSubmit={handleCreateWO}>
+            <label>Area</label>
+            <select value={newWO.area} onChange={(e) => setNewWO({ ...newWO, area: e.target.value })} required>
+              <option value="">Pilih area</option>
+              {areas.map(a => <option key={a.id} value={a.nama}>{a.nama}</option>)}
+            </select>
+
+            <label>Mesin / instrument</label>
+            <select value={newWO.mesin_instrument} onChange={(e) => setNewWO({ ...newWO, mesin_instrument: e.target.value })}>
+              <option value="">Pilih mesin/instrumen</option>
+              {instrumens.map(i => <option key={i.id} value={i.nama}>{i.nama}</option>)}
+            </select>
+
+            <label>Deskripsi pekerjaan</label>
+            <textarea value={newWO.deskripsi} onChange={(e) => setNewWO({ ...newWO, deskripsi: e.target.value })} required />
+
+            <label>Kategori</label>
+            <input value={newWO.kategori} onChange={(e) => setNewWO({ ...newWO, kategori: e.target.value })} placeholder="Perbaikan / Cleaning / dst" />
+
+            <label>Prioritas</label>
+            <select value={newWO.prioritas} onChange={(e) => setNewWO({ ...newWO, prioritas: e.target.value })}>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+            </select>
+
+            <button type="submit">Buat WO</button>
+          </form>
+        </div>
+      )}
+
       {selected && (
         <div className="card">
           <h2>Lapor: {selected.wo_code}</h2>
-
           <div className="readonly-field"><b>Deskripsi pekerjaan</b>{selected.deskripsi}</div>
           <div className="readonly-field"><b>Area</b>{selected.area || '-'}</div>
           <div className="readonly-field"><b>Mesin / instrument</b>{selected.mesin_instrument || '-'}</div>

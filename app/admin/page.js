@@ -8,11 +8,12 @@ export default function AdminPage() {
   const router = useRouter();
   const [users, setUsers] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
-  const [tab, setTab] = useState('wo'); // 'wo' | 'pelaksana'
+  const [areas, setAreas] = useState([]);
+  const [instrumens, setInstrumens] = useState([]);
+  const [tab, setTab] = useState('wo');
   const [msg, setMsg] = useState({ type: '', text: '' });
 
   const [form, setForm] = useState({
-    wo_code: '',
     tanggal_rencana: '',
     minggu: '',
     area: '',
@@ -24,6 +25,8 @@ export default function AdminPage() {
   });
 
   const [newUser, setNewUser] = useState({ nama: '', username: '', password: '', role: 'pelaksana' });
+  const [newArea, setNewArea] = useState('');
+  const [newInstrumen, setNewInstrumen] = useState('');
 
   useEffect(() => {
     loadData();
@@ -38,14 +41,19 @@ export default function AdminPage() {
       .select('*, users(nama)')
       .order('created_at', { ascending: false });
     setWorkOrders(woData || []);
+
+    const { data: areaData } = await supabase.from('master_area').select('*').order('nama');
+    setAreas(areaData || []);
+
+    const { data: instrumenData } = await supabase.from('master_instrumen').select('*').order('nama');
+    setInstrumens(instrumenData || []);
   }
 
   async function handleCreateWO(e) {
     e.preventDefault();
     setMsg({ type: '', text: '' });
 
-    const { error } = await supabase.from('work_orders').insert({
-      wo_code: form.wo_code,
+    const { data, error } = await supabase.from('work_orders').insert({
       tanggal_rencana: form.tanggal_rencana,
       minggu: form.minggu ? parseInt(form.minggu) : null,
       area: form.area,
@@ -54,16 +62,17 @@ export default function AdminPage() {
       kategori: form.kategori,
       prioritas: form.prioritas,
       pic_id: form.pic_id,
-    });
+      sumber: 'terencana',
+    }).select().single();
 
     if (error) {
       setMsg({ type: 'error', text: error.message });
       return;
     }
 
-    setMsg({ type: 'success', text: `WO ${form.wo_code} berhasil dibuat.` });
+    setMsg({ type: 'success', text: `WO ${data.wo_code} berhasil dibuat.` });
     setForm({
-      wo_code: '', tanggal_rencana: '', minggu: '', area: '',
+      tanggal_rencana: '', minggu: '', area: '',
       mesin_instrument: '', deskripsi: '', kategori: '', prioritas: 'Low', pic_id: '',
     });
     loadData();
@@ -74,14 +83,7 @@ export default function AdminPage() {
     setMsg({ type: '', text: '' });
 
     const email = usernameToEmail(newUser.username);
-
-    // Catatan: signUp di sini dilakukan dari sisi client dengan anon key.
-    // Untuk penggunaan produksi jangka panjang, sebaiknya proses pembuatan
-    // user dipindah ke server-side (API route) memakai service_role key.
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password: newUser.password,
-    });
+    const { data, error } = await supabase.auth.signUp({ email, password: newUser.password });
 
     if (error) {
       setMsg({ type: 'error', text: error.message });
@@ -104,6 +106,34 @@ export default function AdminPage() {
     loadData();
   }
 
+  async function handleAddArea(e) {
+    e.preventDefault();
+    if (!newArea.trim()) return;
+    const { error } = await supabase.from('master_area').insert({ nama: newArea.trim() });
+    if (error) { setMsg({ type: 'error', text: error.message }); return; }
+    setNewArea('');
+    loadData();
+  }
+
+  async function handleAddInstrumen(e) {
+    e.preventDefault();
+    if (!newInstrumen.trim()) return;
+    const { error } = await supabase.from('master_instrumen').insert({ nama: newInstrumen.trim() });
+    if (error) { setMsg({ type: 'error', text: error.message }); return; }
+    setNewInstrumen('');
+    loadData();
+  }
+
+  async function handleDeleteArea(id) {
+    await supabase.from('master_area').delete().eq('id', id);
+    loadData();
+  }
+
+  async function handleDeleteInstrumen(id) {
+    await supabase.from('master_instrumen').delete().eq('id', id);
+    loadData();
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push('/');
@@ -113,12 +143,16 @@ export default function AdminPage() {
     <div className="container">
       <div className="topbar">
         <h1 style={{ marginBottom: 0 }}>Admin</h1>
-        <button className="secondary" onClick={handleLogout}>Keluar</button>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <a href="/dashboard">Dashboard</a>
+          <button className="secondary" onClick={handleLogout}>Keluar</button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button className={tab === 'wo' ? '' : 'secondary'} onClick={() => setTab('wo')}>Work order</button>
         <button className={tab === 'pelaksana' ? '' : 'secondary'} onClick={() => setTab('pelaksana')}>Tambah pelaksana</button>
+        <button className={tab === 'master' ? '' : 'secondary'} onClick={() => setTab('master')}>Master data</button>
       </div>
 
       {msg.text && <div className={msg.type}>{msg.text}</div>}
@@ -127,10 +161,8 @@ export default function AdminPage() {
         <>
           <div className="card">
             <h2>Buat work order baru</h2>
+            <p style={{ fontSize: 13, color: '#777', marginTop: -8 }}>Kode WO akan dibuat otomatis (format UTLYYMM-NN).</p>
             <form onSubmit={handleCreateWO}>
-              <label>Kode WO</label>
-              <input value={form.wo_code} onChange={(e) => setForm({ ...form, wo_code: e.target.value })} placeholder="UTL26-07-12" required />
-
               <label>Tanggal rencana</label>
               <input type="date" value={form.tanggal_rencana} onChange={(e) => setForm({ ...form, tanggal_rencana: e.target.value })} required />
 
@@ -138,10 +170,16 @@ export default function AdminPage() {
               <input type="number" value={form.minggu} onChange={(e) => setForm({ ...form, minggu: e.target.value })} />
 
               <label>Area</label>
-              <input value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} />
+              <select value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} required>
+                <option value="">Pilih area</option>
+                {areas.map(a => <option key={a.id} value={a.nama}>{a.nama}</option>)}
+              </select>
 
               <label>Mesin / instrument / alat</label>
-              <input value={form.mesin_instrument} onChange={(e) => setForm({ ...form, mesin_instrument: e.target.value })} />
+              <select value={form.mesin_instrument} onChange={(e) => setForm({ ...form, mesin_instrument: e.target.value })}>
+                <option value="">Pilih mesin/instrumen</option>
+                {instrumens.map(i => <option key={i.id} value={i.nama}>{i.nama}</option>)}
+              </select>
 
               <label>Deskripsi pekerjaan</label>
               <textarea value={form.deskripsi} onChange={(e) => setForm({ ...form, deskripsi: e.target.value })} required />
@@ -173,6 +211,9 @@ export default function AdminPage() {
             {workOrders.map(wo => (
               <div key={wo.id} className="wo-item">
                 <b>{wo.wo_code}</b> — {wo.deskripsi}
+                {wo.sumber === 'tidak terencana' && (
+                  <span className="badge medium" style={{ marginLeft: 8 }}>Tidak terencana</span>
+                )}
                 <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
                   {wo.area} · PIC: {wo.users?.nama || '-'} · {wo.status_wo}
                 </div>
@@ -204,6 +245,48 @@ export default function AdminPage() {
             <button type="submit">Buat akun</button>
           </form>
         </div>
+      )}
+
+      {tab === 'master' && (
+        <>
+          <div className="card">
+            <h2>Master data area</h2>
+            <form onSubmit={handleAddArea} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <label>Nama area baru</label>
+                <input value={newArea} onChange={(e) => setNewArea(e.target.value)} />
+              </div>
+              <button type="submit">Tambah</button>
+            </form>
+            <div style={{ marginTop: 12 }}>
+              {areas.map(a => (
+                <div key={a.id} className="wo-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {a.nama}
+                  <button className="secondary" style={{ marginTop: 0 }} onClick={() => handleDeleteArea(a.id)}>Hapus</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <h2>Master data mesin/instrumen</h2>
+            <form onSubmit={handleAddInstrumen} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <label>Nama mesin/instrumen baru</label>
+                <input value={newInstrumen} onChange={(e) => setNewInstrumen(e.target.value)} />
+              </div>
+              <button type="submit">Tambah</button>
+            </form>
+            <div style={{ marginTop: 12 }}>
+              {instrumens.map(i => (
+                <div key={i.id} className="wo-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {i.nama}
+                  <button className="secondary" style={{ marginTop: 0 }} onClick={() => handleDeleteInstrumen(i.id)}>Hapus</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
