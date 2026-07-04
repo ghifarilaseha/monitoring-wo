@@ -161,7 +161,7 @@ export default function AdminPage() {
         <>
           <div className="card">
             <h2>Buat work order baru</h2>
-            <p style={{ fontSize: 13, color: '#777', marginTop: -8 }}>Kode WO akan dibuat otomatis (format UTLYYMM-NN).</p>
+            <p style={{ fontSize: 13, color: '#777', marginTop: -8 }}>Kode WO akan dibuat otomatis (format UTLYY-MM-NN).</p>
             <form onSubmit={handleCreateWO}>
               <label>Tanggal rencana</label>
               <input type="date" value={form.tanggal_rencana} onChange={(e) => setForm({ ...form, tanggal_rencana: e.target.value })} required />
