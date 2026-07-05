@@ -10,12 +10,13 @@ export default function LaporPage() {
   const [workOrders, setWorkOrders] = useState([]);
   const [areas, setAreas] = useState([]);
   const [instrumens, setInstrumens] = useState([]);
+  const [kategoris, setKategoris] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [tab, setTab] = useState('daftar'); // 'daftar' | 'buat'
+  const [tab, setTab] = useState('daftar');
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [submitting, setSubmitting] = useState(false);
 
-  const [report, setReport] = useState({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto: null });
+  const [report, setReport] = useState({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto_sebelum: null, foto_sesudah: null });
   const [newWO, setNewWO] = useState({ area: '', mesin_instrument: '', deskripsi: '', kategori: '', prioritas: 'Medium' });
 
   useEffect(() => {
@@ -34,6 +35,8 @@ export default function LaporPage() {
     setAreas(areaData || []);
     const { data: instrumenData } = await supabase.from('master_instrumen').select('*').order('nama');
     setInstrumens(instrumenData || []);
+    const { data: kategoriData } = await supabase.from('master_kategori').select('*').order('nama');
+    setKategoris(kategoriData || []);
   }
 
   async function loadWorkOrders(picId) {
@@ -41,8 +44,7 @@ export default function LaporPage() {
       .from('work_orders')
       .select('*')
       .eq('pic_id', picId)
-      .eq('status_wo', 'Belum Dilaporkan')
-      .order('tanggal_rencana');
+      .order('tanggal_rencana', { ascending: false });
     setWorkOrders(data || []);
   }
 
@@ -72,33 +74,53 @@ export default function LaporPage() {
     loadWorkOrders(profile.id);
   }
 
+  function openReport(wo) {
+    setSelected(wo);
+    setReport({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto_sebelum: null, foto_sesudah: null });
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setMsg({ type: '', text: '' });
     setSubmitting(true);
 
-    let foto_url = null;
-    if (report.foto) {
-      const fileExt = report.foto.name.split('.').pop();
-      const filePath = `${selected.wo_code}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('bukti-foto').upload(filePath, report.foto);
-      if (uploadError) {
-        setMsg({ type: 'error', text: `Gagal upload foto: ${uploadError.message}` });
-        setSubmitting(false);
-        return;
-      }
+    async function uploadFoto(file, label) {
+      if (!file) return null;
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${selected.wo_code}-${label}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('bukti-foto').upload(filePath, file);
+      if (uploadError) throw new Error(`Gagal upload foto ${label}: ${uploadError.message}`);
       const { data: publicUrlData } = supabase.storage.from('bukti-foto').getPublicUrl(filePath);
-      foto_url = publicUrlData.publicUrl;
+      return publicUrlData.publicUrl;
     }
 
-    const { error: reportError } = await supabase.from('reports').insert({
+    let foto_sebelum_url = null;
+    let foto_sesudah_url = null;
+    try {
+      foto_sebelum_url = await uploadFoto(report.foto_sebelum, 'sebelum');
+      foto_sesudah_url = await uploadFoto(report.foto_sesudah, 'sesudah');
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message });
+      setSubmitting(false);
+      return;
+    }
+
+    // Cek apakah sudah ada laporan sebelumnya untuk WO ini (misal karena di-reject) -> timpa
+    const { data: existing } = await supabase.from('reports').select('id').eq('work_order_id', selected.id).maybeSingle();
+
+    const payload = {
       work_order_id: selected.id,
       waktu_mulai: report.waktu_mulai || null,
       waktu_selesai: report.waktu_selesai || null,
       keterangan: report.keterangan,
-      foto_url,
       dilaporkan_oleh: profile.id,
-    });
+      ...(foto_sebelum_url && { foto_sebelum_url }),
+      ...(foto_sesudah_url && { foto_sesudah_url }),
+    };
+
+    const { error: reportError } = existing
+      ? await supabase.from('reports').update(payload).eq('id', existing.id)
+      : await supabase.from('reports').insert(payload);
 
     if (reportError) {
       setMsg({ type: 'error', text: reportError.message });
@@ -110,7 +132,6 @@ export default function LaporPage() {
 
     setMsg({ type: 'success', text: `Laporan untuk ${selected.wo_code} berhasil dikirim.` });
     setSelected(null);
-    setReport({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto: null });
     setSubmitting(false);
     loadWorkOrders(profile.id);
   }
@@ -120,7 +141,15 @@ export default function LaporPage() {
     router.push('/');
   }
 
+  function statusBadgeClass(status) {
+    if (status === 'Approved') return 'status-approved';
+    if (status === 'Selesai') return 'status-selesai';
+    return 'status-belum';
+  }
+
   if (!profile) return <div className="container">Memuat...</div>;
+
+  const perluDikerjakan = workOrders.filter(wo => wo.status_wo !== 'Approved');
 
   return (
     <div className="container">
@@ -140,16 +169,27 @@ export default function LaporPage() {
 
       {!selected && tab === 'daftar' && (
         <div className="card">
-          <h2>Work order kamu ({workOrders.length})</h2>
-          {workOrders.length === 0 && <p style={{ color: '#777' }}>Tidak ada work order yang perlu dilaporkan.</p>}
-          {workOrders.map(wo => (
-            <div key={wo.id} className="wo-item" onClick={() => setSelected(wo)}>
-              <b>{wo.wo_code}</b> — {wo.deskripsi}
-              {wo.sumber === 'tidak terencana' && <span className="badge medium" style={{ marginLeft: 8 }}>Tidak terencana</span>}
-              <div style={{ marginTop: 6 }}>
-                <span className={`badge ${wo.prioritas?.toLowerCase()}`}>{wo.prioritas}</span>
-                <span style={{ fontSize: 13, color: '#666', marginLeft: 8 }}>{wo.area} · {wo.tanggal_rencana}</span>
+          <h2>Work order kamu ({perluDikerjakan.length})</h2>
+          {perluDikerjakan.length === 0 && <p style={{ color: '#777' }}>Tidak ada work order yang perlu dilaporkan.</p>}
+          {perluDikerjakan.map(wo => (
+            <div key={wo.id} className="wo-item" onClick={() => wo.status_wo !== 'Selesai' && openReport(wo)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <b>{wo.wo_code}</b> — {wo.deskripsi}
+                  {wo.sumber === 'tidak terencana' && <span className="badge medium" style={{ marginLeft: 8 }}>Tidak terencana</span>}
+                  <div style={{ marginTop: 6 }}>
+                    <span className={`badge ${wo.prioritas?.toLowerCase()}`}>{wo.prioritas}</span>
+                    <span style={{ fontSize: 13, color: '#666', marginLeft: 8 }}>{wo.area} · {wo.tanggal_rencana}</span>
+                  </div>
+                </div>
+                <span className={`status-badge ${statusBadgeClass(wo.status_wo)}`}>{wo.status_wo}</span>
               </div>
+              {wo.status_wo === 'Belum Selesai' && wo.remarks && (
+                <div className="error" style={{ marginTop: 8 }}><b>Catatan admin:</b> {wo.remarks}</div>
+              )}
+              {wo.status_wo === 'Selesai' && (
+                <div style={{ fontSize: 13, color: '#8a5b00', marginTop: 8 }}>Menunggu verifikasi admin.</div>
+              )}
             </div>
           ))}
         </div>
@@ -176,7 +216,10 @@ export default function LaporPage() {
             <textarea value={newWO.deskripsi} onChange={(e) => setNewWO({ ...newWO, deskripsi: e.target.value })} required />
 
             <label>Kategori</label>
-            <input value={newWO.kategori} onChange={(e) => setNewWO({ ...newWO, kategori: e.target.value })} placeholder="Perbaikan / Cleaning / dst" />
+            <select value={newWO.kategori} onChange={(e) => setNewWO({ ...newWO, kategori: e.target.value })} required>
+              <option value="">Pilih kategori</option>
+              {kategoris.map(k => <option key={k.id} value={k.nama}>{k.nama}</option>)}
+            </select>
 
             <label>Prioritas</label>
             <select value={newWO.prioritas} onChange={(e) => setNewWO({ ...newWO, prioritas: e.target.value })}>
@@ -193,11 +236,15 @@ export default function LaporPage() {
       {selected && (
         <div className="card">
           <h2>Lapor: {selected.wo_code}</h2>
+          {selected.remarks && (
+            <div className="error"><b>Catatan admin (perlu direvisi):</b> {selected.remarks}</div>
+          )}
           <div className="readonly-field"><b>Deskripsi pekerjaan</b>{selected.deskripsi}</div>
           <div className="readonly-field"><b>Area</b>{selected.area || '-'}</div>
           <div className="readonly-field"><b>Mesin / instrument</b>{selected.mesin_instrument || '-'}</div>
           <div className="readonly-field"><b>Target penyelesaian</b>{selected.tanggal_rencana}</div>
           <div className="readonly-field"><b>Kategori</b>{selected.kategori || '-'}</div>
+          <div className="readonly-field"><b>Target durasi</b>{selected.target_durasi_jam ? `${selected.target_durasi_jam} jam` : '-'}</div>
 
           <form onSubmit={handleSubmit}>
             <label>Waktu mulai</label>
@@ -209,8 +256,11 @@ export default function LaporPage() {
             <label>Keterangan</label>
             <textarea value={report.keterangan} onChange={(e) => setReport({ ...report, keterangan: e.target.value })} placeholder="Kondisi pekerjaan, kendala, dsb" />
 
-            <label>Bukti dokumentasi (foto)</label>
-            <input type="file" accept="image/*" onChange={(e) => setReport({ ...report, foto: e.target.files[0] })} />
+            <label>Foto sebelum pengerjaan</label>
+            <input type="file" accept="image/*" onChange={(e) => setReport({ ...report, foto_sebelum: e.target.files[0] })} />
+
+            <label>Foto sesudah pengerjaan</label>
+            <input type="file" accept="image/*" onChange={(e) => setReport({ ...report, foto_sesudah: e.target.files[0] })} />
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="submit" disabled={submitting}>{submitting ? 'Mengirim...' : 'Kirim laporan'}</button>

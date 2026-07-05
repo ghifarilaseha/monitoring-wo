@@ -101,6 +101,22 @@ button.secondary {
 .badge.medium { background: #fff4e0; color: #8a5b00; }
 .badge.high { background: #fdecea; color: #b3261e; }
 
+.status-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.status-badge.status-belum { background: #fdecea; color: #b3261e; }
+.status-badge.status-selesai { background: #fff4e0; color: #8a5b00; }
+.status-badge.status-approved { background: #e7f6ec; color: #1e6b3c; }
+.badge.belumselesai { background: #fdecea; color: #b3261e; }
+.badge.selesai { background: #e8ecfb; color: #2952e3; }
+.badge.approved { background: #e7f6ec; color: #1e6b3c; }
+
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -123,3 +139,21 @@ button.secondary {
 }
 
 .readonly-field b { display: block; font-size: 12px; color: #777; font-weight: 600; margin-bottom: 2px; }
+
+.foto-pair { display: flex; gap: 12px; margin: 10px 0; }
+.foto-pair figure { margin: 0; flex: 1; }
+.foto-pair img { width: 100%; border-radius: 8px; display: block; }
+.foto-pair figcaption { font-size: 12px; color: #777; text-align: center; margin-top: 4px; }
+
+.toolbar-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.toolbar-row input[type="text"], .toolbar-row input[type="date"] { width: auto; flex: 1; min-width: 140px; }
+
+.note-box {
+  background: #fff8e1;
+  border: 1px solid #f2d98a;
+  color: #7a5c00;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
