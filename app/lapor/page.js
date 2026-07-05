@@ -94,19 +94,25 @@ export default function LaporPage() {
       return publicUrlData.publicUrl;
     }
 
-    let foto_sebelum_url = null;
-    let foto_sesudah_url = null;
+    // Ambil laporan sebelumnya (kalau ada) supaya foto lama tidak hilang
+    // kalau pelaksana cuma upload ulang salah satu foto saja.
+    const { data: existingReport } = await supabase
+      .from('reports')
+      .select('foto_sebelum_url, foto_sesudah_url')
+      .eq('work_order_id', selected.id)
+      .maybeSingle();
+
+    let foto_sebelum_url = existingReport?.foto_sebelum_url || null;
+    let foto_sesudah_url = existingReport?.foto_sesudah_url || null;
+
     try {
-      foto_sebelum_url = await uploadFoto(report.foto_sebelum, 'sebelum');
-      foto_sesudah_url = await uploadFoto(report.foto_sesudah, 'sesudah');
+      if (report.foto_sebelum) foto_sebelum_url = await uploadFoto(report.foto_sebelum, 'sebelum');
+      if (report.foto_sesudah) foto_sesudah_url = await uploadFoto(report.foto_sesudah, 'sesudah');
     } catch (err) {
       setMsg({ type: 'error', text: err.message });
       setSubmitting(false);
       return;
     }
-
-    // Cek apakah sudah ada laporan sebelumnya untuk WO ini (misal karena di-reject) -> timpa
-    const { data: existing } = await supabase.from('reports').select('id').eq('work_order_id', selected.id).maybeSingle();
 
     const payload = {
       work_order_id: selected.id,
@@ -114,13 +120,13 @@ export default function LaporPage() {
       waktu_selesai: report.waktu_selesai || null,
       keterangan: report.keterangan,
       dilaporkan_oleh: profile.id,
-      ...(foto_sebelum_url && { foto_sebelum_url }),
-      ...(foto_sesudah_url && { foto_sesudah_url }),
+      foto_sebelum_url,
+      foto_sesudah_url,
     };
 
-    const { error: reportError } = existing
-      ? await supabase.from('reports').update(payload).eq('id', existing.id)
-      : await supabase.from('reports').insert(payload);
+    const { error: reportError } = await supabase
+      .from('reports')
+      .upsert(payload, { onConflict: 'work_order_id' });
 
     if (reportError) {
       setMsg({ type: 'error', text: reportError.message });
@@ -128,7 +134,12 @@ export default function LaporPage() {
       return;
     }
 
-    await supabase.from('work_orders').update({ status_wo: 'Selesai' }).eq('id', selected.id);
+    const { error: statusError } = await supabase.from('work_orders').update({ status_wo: 'Selesai' }).eq('id', selected.id);
+    if (statusError) {
+      setMsg({ type: 'error', text: `Laporan tersimpan, tapi gagal update status: ${statusError.message}` });
+      setSubmitting(false);
+      return;
+    }
 
     setMsg({ type: 'success', text: `Laporan untuk ${selected.wo_code} berhasil dikirim.` });
     setSelected(null);
