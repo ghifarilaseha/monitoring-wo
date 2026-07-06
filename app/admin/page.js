@@ -172,6 +172,7 @@ export default function AdminPage() {
       <div className="topbar">
         <h1 style={{ marginBottom: 0 }}>Admin</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <a href="/admin/wa">Pesan WA</a>
           <a href="/dashboard">Dashboard</a>
           <button className="secondary" onClick={handleLogout}>Keluar</button>
         </div>
