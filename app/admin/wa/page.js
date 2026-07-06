@@ -42,6 +42,7 @@ export default function WaMessagePage() {
     catatan: '',
     keterangan_nbl: '',
     keterangan_cepha: '',
+    link_upload: 'https://monitoring-wo.vercel.app/',
   });
 
   const [pesan, setPesan] = useState('');
@@ -109,21 +110,23 @@ export default function WaMessagePage() {
     rolesTerisi.forEach((r) => {
       const picId = form[r.key];
       text += `\nPak ${namaUser(picId)}\n`;
-      text += `1. ${form[r.tugasKey] || '-'}\n`;
+      const tugasManual = form[r.tugasKey]?.trim();
       const woNya = woPerOrang[picId] || [];
-      if (woNya.length === 0) {
-        text += `2. Tidak ada WO terjadwal hari ini\n`;
-      } else {
-        woNya.forEach((line, i) => {
-          text += `${i + 2}. ${line}\n`;
-        });
-      }
+
+      const daftarPekerjaan = [];
+      if (tugasManual) daftarPekerjaan.push(tugasManual);
+      daftarPekerjaan.push(...woNya);
+      if (daftarPekerjaan.length === 0) daftarPekerjaan.push('Tidak ada WO terjadwal hari ini');
+
+      daftarPekerjaan.forEach((line, i) => {
+        text += `${i + 1}. ${line}\n`;
+      });
     });
 
     if (form.keterangan_nbl.trim()) text += `\nNBL: ${form.keterangan_nbl.trim()}`;
     if (form.keterangan_cepha.trim()) text += `\nCepha: ${form.keterangan_cepha.trim()}`;
 
-    text += `\n\nUpload hasil pekerjaan pada:\n${typeof window !== 'undefined' ? window.location.origin : ''}`;
+    text += `\n\nUpload hasil pekerjaan pada:\n${form.link_upload}`;
 
     setPesan(text);
 
@@ -195,6 +198,9 @@ export default function WaMessagePage() {
 
           <label>Keterangan Cepha</label>
           <input value={form.keterangan_cepha} onChange={(e) => setForm({ ...form, keterangan_cepha: e.target.value })} />
+
+          <label>Link upload hasil pekerjaan</label>
+          <input value={form.link_upload} onChange={(e) => setForm({ ...form, link_upload: e.target.value })} />
 
           <button type="submit">Generate pesan</button>
         </form>
