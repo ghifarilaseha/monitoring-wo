@@ -28,6 +28,7 @@ export default function AdminPage() {
     prioritas: 'Low',
     pic_id: '',
     target_durasi_jam: '',
+    support_ids: [],
   });
 
   const [newUser, setNewUser] = useState({ nama: '', username: '', password: '', role: 'pelaksana' });
@@ -80,10 +81,17 @@ export default function AdminPage() {
       return;
     }
 
+    // Simpan PIC dan support ke tabel wo_pelaksana
+    const pelaksanaRows = [
+      { work_order_id: data.id, user_id: form.pic_id, peran: 'pic' },
+      ...form.support_ids.map(sid => ({ work_order_id: data.id, user_id: sid, peran: 'support' })),
+    ];
+    await supabase.from('wo_pelaksana').insert(pelaksanaRows);
+
     setMsg({ type: 'success', text: `WO ${data.wo_code} berhasil dibuat.` });
     setForm({
       tanggal_rencana: '', area: '', mesin_instrument: '', deskripsi: '',
-      kategori: '', prioritas: 'Low', pic_id: '', target_durasi_jam: '',
+      kategori: '', prioritas: 'Low', pic_id: '', target_durasi_jam: '', support_ids: [],
     });
     loadData();
   }
@@ -226,13 +234,35 @@ export default function AdminPage() {
                 <option value="High">High</option>
               </select>
 
-              <label>PIC</label>
+              <label>PIC (penanggung jawab utama)</label>
               <select value={form.pic_id} onChange={(e) => setForm({ ...form, pic_id: e.target.value })} required>
                 <option value="">Pilih PIC</option>
                 {users.filter(u => u.role === 'pelaksana').map(u => (
                   <option key={u.id} value={u.id}>{u.nama}</option>
                 ))}
               </select>
+
+              <label>Support (opsional, bisa pilih lebih dari satu)</label>
+              <div style={{ border: '1px solid #d5d7db', borderRadius: 8, padding: '8px 12px' }}>
+                {users.filter(u => u.role === 'pelaksana' && u.id !== form.pic_id).map(u => (
+                  <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.support_ids.includes(u.id)}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...form.support_ids, u.id]
+                          : form.support_ids.filter(id => id !== u.id);
+                        setForm({ ...form, support_ids: next });
+                      }}
+                    />
+                    {u.nama}
+                  </label>
+                ))}
+                {users.filter(u => u.role === 'pelaksana' && u.id !== form.pic_id).length === 0 && (
+                  <span style={{ fontSize: 13, color: '#aaa' }}>Pilih PIC dulu</span>
+                )}
+              </div>
 
               <button type="submit">Simpan work order</button>
             </form>

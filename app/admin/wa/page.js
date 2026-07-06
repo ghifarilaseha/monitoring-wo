@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 import { supabase } from '../../../lib/supabase';
 
 const ROLE_DEFS = [
@@ -83,18 +84,23 @@ export default function WaMessagePage() {
       return;
     }
 
-    // Ambil semua WO pada tanggal ini untuk orang-orang yang dipilih
+    // Ambil semua keterlibatan WO pada tanggal ini untuk semua orang yang dipilih
     const picIds = rolesTerisi.map(r => form[r.key]);
-    const { data: woList } = await supabase
-      .from('work_orders')
-      .select('wo_code, deskripsi, pic_id')
-      .eq('tanggal_rencana', form.tanggal)
-      .in('pic_id', picIds);
+    const { data: woPelaksanaData } = await supabase
+      .from('wo_pelaksana')
+      .select('user_id, peran, work_orders(wo_code, deskripsi, tanggal_rencana, pic_id)')
+      .in('user_id', picIds);
 
     const woPerOrang = {};
-    (woList || []).forEach(wo => {
-      if (!woPerOrang[wo.pic_id]) woPerOrang[wo.pic_id] = [];
-      woPerOrang[wo.pic_id].push(`[${wo.wo_code}] ${wo.deskripsi}`);
+    (woPelaksanaData || []).forEach(r => {
+      const wo = r.work_orders;
+      if (!wo || wo.tanggal_rencana !== form.tanggal) return;
+      if (!woPerOrang[r.user_id]) woPerOrang[r.user_id] = [];
+      if (r.peran === 'pic') {
+        woPerOrang[r.user_id].push(`[${wo.wo_code}] ${wo.deskripsi}`);
+      } else {
+        woPerOrang[r.user_id].push(`Support ${wo.deskripsi}`);
+      }
     });
 
     let text = `Tim Utility\n${formatTanggal(form.tanggal)} ${form.shift}\n\n`;
@@ -107,6 +113,7 @@ export default function WaMessagePage() {
     }
 
     text += `\nPekerjaan hari ini\n`;
+    const ringkasanPerRole = {};
     rolesTerisi.forEach((r) => {
       const picId = form[r.key];
       text += `\nPak ${namaUser(picId)}\n`;
@@ -121,6 +128,9 @@ export default function WaMessagePage() {
       daftarPekerjaan.forEach((line, i) => {
         text += `${i + 1}. ${line}\n`;
       });
+
+      // Simpan versi ringkas (nama + daftar) untuk dipakai di export tabel
+      ringkasanPerRole[r.key] = `${namaUser(picId)}\n` + daftarPekerjaan.map((l, i) => `${i + 1}. ${l}`).join('\n');
     });
 
     if (form.keterangan_nbl.trim()) text += `\nNBL: ${form.keterangan_nbl.trim()}`;
@@ -141,6 +151,10 @@ export default function WaMessagePage() {
       keterangan_nbl: form.keterangan_nbl,
       keterangan_cepha: form.keterangan_cepha,
       pesan_teks: text,
+      ringkasan_boiler: ringkasanPerRole.operator_boiler_id || '',
+      ringkasan_ws: ringkasanPerRole.operator_ws_id || '',
+      ringkasan_teknisi: ringkasanPerRole.teknisi_id || '',
+      ringkasan_kepala_regu: ringkasanPerRole.kepala_regu_id || '',
     });
 
     if (error) {
@@ -149,6 +163,38 @@ export default function WaMessagePage() {
       setMsg({ type: 'success', text: 'Pesan berhasil dibuat dan disimpan ke riwayat.' });
       loadRiwayat();
     }
+  }
+
+  const [exportFrom, setExportFrom] = useState('');
+  const [exportTo, setExportTo] = useState('');
+
+  async function handleExport() {
+    let query = supabase.from('data_harian').select('*').order('tanggal');
+    if (exportFrom) query = query.gte('tanggal', exportFrom);
+    if (exportTo) query = query.lte('tanggal', exportTo);
+
+    const { data, error } = await query;
+    if (error) {
+      setMsg({ type: 'error', text: error.message });
+      return;
+    }
+
+    const rows = (data || []).map(r => ({
+      'Tanggal': r.tanggal,
+      'Shift': r.shift,
+      'Boiler & PWT': r.ringkasan_boiler || '',
+      'Operator WS, CAOF dan PSG NBL': r.ringkasan_ws || '',
+      'Teknisi Mobile': r.ringkasan_teknisi || '',
+      'Kepala Regu': r.ringkasan_kepala_regu || '',
+      'NBL': r.keterangan_nbl || '',
+      'Cepha': r.keterangan_cepha || '',
+      'Catatan': r.catatan || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Data Harian');
+    XLSX.writeFile(wb, `data-harian-${exportFrom || 'awal'}_${exportTo || 'akhir'}.xlsx`);
   }
 
   function handleCopy(text) {
@@ -213,6 +259,22 @@ export default function WaMessagePage() {
           <button onClick={() => handleCopy(pesan)}>Salin ke clipboard</button>
         </div>
       )}
+
+      <div className="card">
+        <h2>Export data harian</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <label>Dari</label>
+            <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} />
+          </div>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <label>Sampai</label>
+            <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} />
+          </div>
+        </div>
+        <p style={{ fontSize: 13, color: '#777', marginTop: 8 }}>Kosongkan untuk export semua riwayat data harian.</p>
+        <button onClick={handleExport}>Export ke Excel</button>
+      </div>
 
       {riwayat.length > 0 && (
         <div className="card">

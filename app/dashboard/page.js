@@ -80,12 +80,25 @@ export default function DashboardPage() {
       .from('reports')
       .select('work_order_id, waktu_mulai, waktu_selesai, foto_sebelum_url, foto_sesudah_url');
 
+    const { data: woPelaksanaData } = await supabase
+      .from('wo_pelaksana')
+      .select('work_order_id, user_id, peran');
+
     const reportsByWoId = {};
     (reportsData || []).forEach(r => { reportsByWoId[r.work_order_id] = r; });
+
+    const supportByWoId = {};
+    (woPelaksanaData || []).forEach(r => {
+      if (r.peran === 'support') {
+        if (!supportByWoId[r.work_order_id]) supportByWoId[r.work_order_id] = [];
+        supportByWoId[r.work_order_id].push(r.user_id);
+      }
+    });
 
     const merged = (data || []).map(wo => ({
       ...wo,
       _report: reportsByWoId[wo.id] || null,
+      _support_ids: supportByWoId[wo.id] || [],
     }));
 
     setWorkOrders(merged);
@@ -133,7 +146,9 @@ export default function DashboardPage() {
   // KPI per pelaksana
   let kpi = null;
   if (selectedPic) {
-    const woUntukPic = filteredWO.filter(wo => wo.pic_id === selectedPic);
+    const woUntukPic = filteredWO.filter(wo =>
+      wo.pic_id === selectedPic || (wo._support_ids || []).includes(selectedPic)
+    );
     const totalDibuat = woUntukPic.length;
     const woApproved = woUntukPic.filter(wo => wo.status_wo === 'Approved');
     const totalApproved = woApproved.length;

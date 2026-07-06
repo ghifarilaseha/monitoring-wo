@@ -7,7 +7,8 @@ import { supabase } from '../../lib/supabase';
 export default function LaporPage() {
   const router = useRouter();
   const [profile, setProfile] = useState(null);
-  const [workOrders, setWorkOrders] = useState([]);
+  const [picWOs, setPicWOs] = useState([]);
+  const [supportWOs, setSupportWOs] = useState([]);
   const [areas, setAreas] = useState([]);
   const [instrumens, setInstrumens] = useState([]);
   const [kategoris, setKategoris] = useState([]);
@@ -39,13 +40,22 @@ export default function LaporPage() {
     setKategoris(kategoriData || []);
   }
 
-  async function loadWorkOrders(picId) {
-    const { data } = await supabase
-      .from('work_orders')
-      .select('*')
-      .eq('pic_id', picId)
-      .order('tanggal_rencana', { ascending: false });
-    setWorkOrders(data || []);
+  async function loadWorkOrders(userId) {
+    const { data: woPelaksana } = await supabase
+      .from('wo_pelaksana')
+      .select('peran, work_orders(*)')
+      .eq('user_id', userId);
+
+    const allWO = woPelaksana || [];
+    const pic = allWO
+      .filter(r => r.peran === 'pic' && r.work_orders?.status_wo !== 'Approved')
+      .map(r => r.work_orders);
+    const support = allWO
+      .filter(r => r.peran === 'support' && r.work_orders?.status_wo !== 'Approved')
+      .map(r => r.work_orders);
+
+    setPicWOs(pic);
+    setSupportWOs(support);
   }
 
   async function handleCreateWO(e) {
@@ -67,6 +77,8 @@ export default function LaporPage() {
       setMsg({ type: 'error', text: error.message });
       return;
     }
+
+    await supabase.from('wo_pelaksana').insert({ work_order_id: data.id, user_id: profile.id, peran: 'pic' });
 
     setMsg({ type: 'success', text: `WO ${data.wo_code} berhasil dibuat. Silakan lapor dari tab Daftar WO.` });
     setNewWO({ area: '', mesin_instrument: '', deskripsi: '', kategori: '', prioritas: 'Medium' });
@@ -94,8 +106,6 @@ export default function LaporPage() {
       return publicUrlData.publicUrl;
     }
 
-    // Ambil laporan sebelumnya (kalau ada) supaya foto lama tidak hilang
-    // kalau pelaksana cuma upload ulang salah satu foto saja.
     const { data: existingReport } = await supabase
       .from('reports')
       .select('foto_sebelum_url, foto_sesudah_url')
@@ -134,7 +144,11 @@ export default function LaporPage() {
       return;
     }
 
-    const { error: statusError } = await supabase.from('work_orders').update({ status_wo: 'Selesai' }).eq('id', selected.id);
+    const { error: statusError } = await supabase
+      .from('work_orders')
+      .update({ status_wo: 'Selesai' })
+      .eq('id', selected.id);
+
     if (statusError) {
       setMsg({ type: 'error', text: `Laporan tersimpan, tapi gagal update status: ${statusError.message}` });
       setSubmitting(false);
@@ -160,8 +174,6 @@ export default function LaporPage() {
 
   if (!profile) return <div className="container">Memuat...</div>;
 
-  const perluDikerjakan = workOrders.filter(wo => wo.status_wo !== 'Approved');
-
   return (
     <div className="container">
       <div className="topbar">
@@ -179,31 +191,57 @@ export default function LaporPage() {
       {msg.text && <div className={msg.type}>{msg.text}</div>}
 
       {!selected && tab === 'daftar' && (
-        <div className="card">
-          <h2>Work order kamu ({perluDikerjakan.length})</h2>
-          {perluDikerjakan.length === 0 && <p style={{ color: '#777' }}>Tidak ada work order yang perlu dilaporkan.</p>}
-          {perluDikerjakan.map(wo => (
-            <div key={wo.id} className="wo-item" onClick={() => wo.status_wo !== 'Selesai' && openReport(wo)}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <b>{wo.wo_code}</b> — {wo.deskripsi}
-                  {wo.sumber === 'tidak terencana' && <span className="badge medium" style={{ marginLeft: 8 }}>Tidak terencana</span>}
-                  <div style={{ marginTop: 6 }}>
-                    <span className={`badge ${wo.prioritas?.toLowerCase()}`}>{wo.prioritas}</span>
-                    <span style={{ fontSize: 13, color: '#666', marginLeft: 8 }}>{wo.area} · {wo.tanggal_rencana}</span>
+        <>
+          <div className="card">
+            <h2>Work order kamu — perlu dilaporkan ({picWOs.filter(wo => wo.status_wo === 'Belum Selesai').length})</h2>
+            {picWOs.filter(wo => wo.status_wo === 'Belum Selesai').length === 0 && (
+              <p style={{ color: '#777' }}>Tidak ada work order yang perlu dilaporkan.</p>
+            )}
+            {picWOs.filter(wo => wo.status_wo !== 'Approved').map(wo => (
+              <div key={wo.id} className="wo-item" onClick={() => wo.status_wo === 'Belum Selesai' && openReport(wo)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <b>{wo.wo_code}</b> — {wo.deskripsi}
+                    {wo.sumber === 'tidak terencana' && <span className="badge medium" style={{ marginLeft: 8 }}>Tidak terencana</span>}
+                    <div style={{ marginTop: 6 }}>
+                      <span className={`badge ${wo.prioritas?.toLowerCase()}`}>{wo.prioritas}</span>
+                      <span style={{ fontSize: 13, color: '#666', marginLeft: 8 }}>{wo.area} · {wo.tanggal_rencana}</span>
+                    </div>
                   </div>
+                  <span className={`status-badge ${statusBadgeClass(wo.status_wo)}`}>{wo.status_wo}</span>
                 </div>
-                <span className={`status-badge ${statusBadgeClass(wo.status_wo)}`}>{wo.status_wo}</span>
+                {wo.status_wo === 'Belum Selesai' && wo.remarks && (
+                  <div className="error" style={{ marginTop: 8 }}><b>Catatan admin:</b> {wo.remarks}</div>
+                )}
+                {wo.status_wo === 'Selesai' && (
+                  <div style={{ fontSize: 13, color: '#8a5b00', marginTop: 8 }}>Menunggu verifikasi admin.</div>
+                )}
               </div>
-              {wo.status_wo === 'Belum Selesai' && wo.remarks && (
-                <div className="error" style={{ marginTop: 8 }}><b>Catatan admin:</b> {wo.remarks}</div>
-              )}
-              {wo.status_wo === 'Selesai' && (
-                <div style={{ fontSize: 13, color: '#8a5b00', marginTop: 8 }}>Menunggu verifikasi admin.</div>
-              )}
+            ))}
+          </div>
+
+          {supportWOs.length > 0 && (
+            <div className="card">
+              <h2>WO yang kamu terlibat sebagai support ({supportWOs.length})</h2>
+              {supportWOs.map(wo => (
+                <div key={wo.id} className="wo-item" style={{ opacity: 0.8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <b>{wo.wo_code}</b> — {wo.deskripsi}
+                      <span className="badge medium" style={{ marginLeft: 8 }}>Support</span>
+                      <div style={{ marginTop: 6 }}>
+                        <span className={`badge ${wo.prioritas?.toLowerCase()}`}>{wo.prioritas}</span>
+                        <span style={{ fontSize: 13, color: '#666', marginLeft: 8 }}>{wo.area} · {wo.tanggal_rencana}</span>
+                      </div>
+                    </div>
+                    <span className={`status-badge ${statusBadgeClass(wo.status_wo)}`}>{wo.status_wo}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#777', marginTop: 6 }}>Laporan dikerjakan oleh PIC utama WO ini.</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {!selected && tab === 'buat' && (
