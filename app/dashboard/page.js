@@ -23,7 +23,7 @@ function fmtPct(x) {
 }
 
 function actualHours(wo) {
-  const r = wo.reports?.[0];
+  const r = wo._report;
   if (!r || !r.waktu_mulai || !r.waktu_selesai) return null;
   const ms = new Date(r.waktu_selesai) - new Date(r.waktu_mulai);
   return ms > 0 ? ms / 3600000 : null;
@@ -74,8 +74,21 @@ export default function DashboardPage() {
 
     const { data } = await supabase
       .from('work_orders')
-      .select('*, users(nama), reports(waktu_mulai, waktu_selesai, foto_sebelum_url, foto_sesudah_url)');
-    setWorkOrders(data || []);
+      .select('*, users(nama)');
+
+    const { data: reportsData } = await supabase
+      .from('reports')
+      .select('work_order_id, waktu_mulai, waktu_selesai, foto_sebelum_url, foto_sesudah_url');
+
+    const reportsByWoId = {};
+    (reportsData || []).forEach(r => { reportsByWoId[r.work_order_id] = r; });
+
+    const merged = (data || []).map(wo => ({
+      ...wo,
+      _report: reportsByWoId[wo.id] || null,
+    }));
+
+    setWorkOrders(merged);
 
     const { data: pelaksanaData } = await supabase.from('users').select('*').eq('role', 'pelaksana').order('nama');
     setPelaksanaList(pelaksanaData || []);
@@ -153,7 +166,7 @@ export default function DashboardPage() {
 
   function handleExportRekap() {
     const rawRows = filteredWO.map(wo => {
-      const r = wo.reports?.[0];
+      const r = wo._report;
       return {
         'Kode WO': wo.wo_code,
         'Tanggal Rencana': wo.tanggal_rencana,
