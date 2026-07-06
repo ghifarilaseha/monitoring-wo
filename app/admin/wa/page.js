@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
 const ROLE_DEFS = [
-  { key: 'operator_boiler_id', label: 'Operator Boiler', tugas: 'Back-up operasional boiler & PWT' },
-  { key: 'operator_ws_id', label: 'Operator WS', tugas: 'Back-up operasional WS, CAOF dan PSG NBL' },
-  { key: 'teknisi_id', label: 'Teknisi', tugas: 'Back up Mobile dan operasional gas, sumur & PSG Cepha' },
-  { key: 'kepala_regu_id', label: 'Kepala Regu', tugas: 'Kepala Regu' },
+  { key: 'operator_boiler_id', tugasKey: 'operator_boiler_tugas', label: 'Operator Boiler', tugas: 'Back-up operasional boiler & PWT' },
+  { key: 'operator_ws_id', tugasKey: 'operator_ws_tugas', label: 'Operator WS', tugas: 'Back-up operasional WS, CAOF dan PSG NBL' },
+  { key: 'teknisi_id', tugasKey: 'teknisi_tugas', label: 'Teknisi', tugas: 'Back up Mobile dan operasional gas, sumur & PSG Cepha' },
+  { key: 'kepala_regu_id', tugasKey: 'kepala_regu_tugas', label: 'Kepala Regu', tugas: 'Kepala Regu' },
 ];
 
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -32,9 +32,13 @@ export default function WaMessagePage() {
     tanggal: new Date().toISOString().slice(0, 10),
     shift: 'Shift 1',
     operator_boiler_id: '',
+    operator_boiler_tugas: '',
     operator_ws_id: '',
+    operator_ws_tugas: '',
     teknisi_id: '',
+    teknisi_tugas: '',
     kepala_regu_id: '',
+    kepala_regu_tugas: '',
     catatan: '',
     keterangan_nbl: '',
     keterangan_cepha: '',
@@ -105,7 +109,7 @@ export default function WaMessagePage() {
     rolesTerisi.forEach((r) => {
       const picId = form[r.key];
       text += `\nPak ${namaUser(picId)}\n`;
-      text += `1. ${r.tugas}\n`;
+      text += `1. ${form[r.tugasKey] || '-'}\n`;
       const woNya = woPerOrang[picId] || [];
       if (woNya.length === 0) {
         text += `2. Tidak ada WO terjadwal hari ini\n`;
@@ -178,6 +182,8 @@ export default function WaMessagePage() {
                 <option value="">— Kosongkan —</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.nama}</option>)}
               </select>
+              <label style={{ fontWeight: 400, fontSize: 13 }}>Tugas hari ini (poin 1) — {r.label}</label>
+              <input value={form[r.tugasKey]} onChange={(e) => setForm({ ...form, [r.tugasKey]: e.target.value })} placeholder={r.tugas} />
             </div>
           ))}
 
