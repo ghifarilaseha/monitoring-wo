@@ -73,6 +73,46 @@ export default function WoDetailPage() {
     load();
   }
 
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [areas, setAreas] = useState([]);
+  const [instrumens, setInstrumens] = useState([]);
+  const [kategoris, setKategoris] = useState([]);
+
+  useEffect(() => {
+    async function loadMaster() {
+      const { data: a } = await supabase.from('master_area').select('*').order('nama');
+      setAreas(a || []);
+      const { data: i } = await supabase.from('master_instrumen').select('*').order('nama');
+      setInstrumens(i || []);
+      const { data: k } = await supabase.from('master_kategori').select('*').order('nama');
+      setKategoris(k || []);
+    }
+    loadMaster();
+  }, []);
+
+  function startEdit() {
+    setEditForm({
+      deskripsi: wo.deskripsi || '',
+      area: wo.area || '',
+      mesin_instrument: wo.mesin_instrument || '',
+      kategori: wo.kategori || '',
+      tanggal_rencana: wo.tanggal_rencana || '',
+    });
+    setEditMode(true);
+  }
+
+  async function handleSaveRevisi() {
+    const { error } = await supabase.from('work_orders').update(editForm).eq('id', id);
+    if (error) {
+      setMsg({ type: 'error', text: error.message });
+      return;
+    }
+    setMsg({ type: 'success', text: 'Perubahan berhasil disimpan.' });
+    setEditMode(false);
+    load();
+  }
+
   async function handleDelete() {
     const confirmed = window.confirm(`Yakin mau hapus WO ${wo.wo_code}? Tindakan ini tidak bisa dibatalkan.`);
     if (!confirmed) return;
@@ -108,11 +148,41 @@ export default function WoDetailPage() {
       {msg.text && <div className={msg.type}>{msg.text}</div>}
 
       <div className="card">
-        <div className="readonly-field"><b>Deskripsi pekerjaan</b>{wo.deskripsi}</div>
-        <div className="readonly-field"><b>Area</b>{wo.area || '-'}</div>
-        <div className="readonly-field"><b>Mesin / instrument</b>{wo.mesin_instrument || '-'}</div>
-        <div className="readonly-field"><b>Target penyelesaian</b>{wo.tanggal_rencana}</div>
-        <div className="readonly-field"><b>Kategori</b>{wo.kategori || '-'}</div>
+        {!editMode ? (
+          <>
+            <div className="readonly-field"><b>Deskripsi pekerjaan</b>{wo.deskripsi}</div>
+            <div className="readonly-field"><b>Area</b>{wo.area || '-'}</div>
+            <div className="readonly-field"><b>Mesin / instrument</b>{wo.mesin_instrument || '-'}</div>
+            <div className="readonly-field"><b>Target penyelesaian</b>{wo.tanggal_rencana}</div>
+            <div className="readonly-field"><b>Kategori</b>{wo.kategori || '-'}</div>
+          </>
+        ) : (
+          <>
+            <label>Deskripsi pekerjaan</label>
+            <textarea value={editForm.deskripsi} onChange={(e) => setEditForm({ ...editForm, deskripsi: e.target.value })} />
+
+            <label>Area</label>
+            <select value={editForm.area} onChange={(e) => setEditForm({ ...editForm, area: e.target.value })}>
+              <option value="">Pilih area</option>
+              {areas.map(a => <option key={a.id} value={a.nama}>{a.nama}</option>)}
+            </select>
+
+            <label>Mesin / instrument</label>
+            <select value={editForm.mesin_instrument} onChange={(e) => setEditForm({ ...editForm, mesin_instrument: e.target.value })}>
+              <option value="">Pilih mesin/instrumen</option>
+              {instrumens.map(i => <option key={i.id} value={i.nama}>{i.nama}</option>)}
+            </select>
+
+            <label>Target penyelesaian</label>
+            <input type="date" value={editForm.tanggal_rencana} onChange={(e) => setEditForm({ ...editForm, tanggal_rencana: e.target.value })} />
+
+            <label>Kategori</label>
+            <select value={editForm.kategori} onChange={(e) => setEditForm({ ...editForm, kategori: e.target.value })}>
+              <option value="">Pilih kategori</option>
+              {kategoris.map(k => <option key={k.id} value={k.nama}>{k.nama}</option>)}
+            </select>
+          </>
+        )}
         <div style={{ marginBottom: 12 }}>
           <label>Target durasi (jam)</label>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -122,11 +192,19 @@ export default function WoDetailPage() {
         </div>
         <div className="readonly-field"><b>PIC</b>{wo.users?.nama || '-'}</div>
 
-        {wo.status_wo === 'Belum Selesai' && (
-          <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+          {!editMode ? (
+            <button className="secondary" onClick={startEdit}>Revisi</button>
+          ) : (
+            <>
+              <button onClick={handleSaveRevisi}>Simpan perubahan</button>
+              <button className="secondary" onClick={() => setEditMode(false)}>Batal</button>
+            </>
+          )}
+          {wo.status_wo === 'Belum Selesai' && !editMode && (
             <button onClick={handleDelete} style={{ background: '#b3261e' }}>Hapus WO</button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {!report && (
