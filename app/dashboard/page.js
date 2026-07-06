@@ -149,7 +149,7 @@ export default function DashboardPage() {
       const actual = actualHours(wo);
       const target = wo.target_durasi_jam;
       if (actual !== null && target) {
-        if (actual < target) onTimeCount++;
+        if (actual <= target) onTimeCount++;
         sumTarget += Number(target);
         sumActual += actual;
       }

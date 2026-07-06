@@ -53,6 +53,48 @@ export default function WoDetailPage() {
     setTimeout(() => router.push('/admin'), 800);
   }
 
+  const [targetDurasi, setTargetDurasi] = useState('');
+
+  useEffect(() => {
+    if (wo) setTargetDurasi(wo.target_durasi_jam ?? '');
+  }, [wo]);
+
+  async function handleSaveTargetDurasi() {
+    const { error } = await supabase
+      .from('work_orders')
+      .update({ target_durasi_jam: targetDurasi === '' ? null : parseFloat(targetDurasi) })
+      .eq('id', id);
+
+    if (error) {
+      setMsg({ type: 'error', text: error.message });
+      return;
+    }
+    setMsg({ type: 'success', text: 'Target durasi berhasil diperbarui.' });
+    load();
+  }
+
+  async function handleDelete() {
+    const confirmed = window.confirm(`Yakin mau hapus WO ${wo.wo_code}? Tindakan ini tidak bisa dibatalkan.`);
+    if (!confirmed) return;
+
+    const { error } = await supabase.from('work_orders').delete().eq('id', id);
+    if (error) {
+      setMsg({ type: 'error', text: error.message });
+      return;
+    }
+    router.push('/admin');
+  }
+
+  async function handleUnapprove() {
+    const { error } = await supabase.from('work_orders').update({ status_wo: 'Selesai' }).eq('id', id);
+    if (error) {
+      setMsg({ type: 'error', text: error.message });
+      return;
+    }
+    setMsg({ type: 'success', text: 'Status WO dikembalikan ke Selesai.' });
+    load();
+  }
+
   if (loading) return <div className="container">Memuat...</div>;
   if (!wo) return <div className="container">Work order tidak ditemukan.</div>;
 
@@ -71,8 +113,20 @@ export default function WoDetailPage() {
         <div className="readonly-field"><b>Mesin / instrument</b>{wo.mesin_instrument || '-'}</div>
         <div className="readonly-field"><b>Target penyelesaian</b>{wo.tanggal_rencana}</div>
         <div className="readonly-field"><b>Kategori</b>{wo.kategori || '-'}</div>
-        <div className="readonly-field"><b>Target durasi</b>{wo.target_durasi_jam ? `${wo.target_durasi_jam} jam` : '-'}</div>
+        <div style={{ marginBottom: 12 }}>
+          <label>Target durasi (jam)</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input type="number" step="0.5" min="0" value={targetDurasi} onChange={(e) => setTargetDurasi(e.target.value)} />
+            <button className="secondary" style={{ marginTop: 0 }} onClick={handleSaveTargetDurasi}>Simpan</button>
+          </div>
+        </div>
         <div className="readonly-field"><b>PIC</b>{wo.users?.nama || '-'}</div>
+
+        {wo.status_wo === 'Belum Selesai' && (
+          <div style={{ marginTop: 16 }}>
+            <button onClick={handleDelete} style={{ background: '#b3261e' }}>Hapus WO</button>
+          </div>
+        )}
       </div>
 
       {!report && (
@@ -117,7 +171,10 @@ export default function WoDetailPage() {
           )}
 
           {wo.status_wo === 'Approved' && (
-            <div className="success" style={{ marginTop: 12 }}>WO ini sudah di-approve.</div>
+            <div className="success" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>WO ini sudah di-approve.</span>
+              <button className="secondary" style={{ marginTop: 0 }} onClick={handleUnapprove}>Batal Approve</button>
+            </div>
           )}
         </div>
       )}
