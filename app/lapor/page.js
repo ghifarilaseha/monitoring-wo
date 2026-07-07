@@ -96,11 +96,50 @@ export default function LaporPage() {
     setMsg({ type: '', text: '' });
     setSubmitting(true);
 
+    async function compressFoto(file, maxSizeMB = 0.8) {
+      return new Promise((resolve) => {
+        const MAX_BYTES = maxSizeMB * 1024 * 1024;
+        if (file.size <= MAX_BYTES) { resolve(file); return; }
+
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const canvas = document.createElement('canvas');
+
+          // Scale down kalau dimensi terlalu besar (max 1920px di sisi terpanjang)
+          const MAX_DIM = 1920;
+          let { width, height } = img;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) { height = Math.round(height * MAX_DIM / width); width = MAX_DIM; }
+            else { width = Math.round(width * MAX_DIM / height); height = MAX_DIM; }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+
+          // Coba kualitas 0.7, kalau masih > maxSize turunkan ke 0.5
+          canvas.toBlob((blob) => {
+            if (blob && blob.size <= MAX_BYTES) {
+              resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+            } else {
+              canvas.toBlob((blob2) => {
+                resolve(new File([blob2 || blob], file.name, { type: 'image/jpeg' }));
+              }, 'image/jpeg', 0.5);
+            }
+          }, 'image/jpeg', 0.7);
+        };
+        img.src = url;
+      });
+    }
+
     async function uploadFoto(file, label) {
       if (!file) return null;
-      const fileExt = file.name.split('.').pop();
+      const compressed = await compressFoto(file);
+      const fileExt = 'jpg'; // setelah compress selalu JPEG
       const filePath = `${selected.wo_code}-${label}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('bukti-foto').upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from('bukti-foto').upload(filePath, compressed);
       if (uploadError) throw new Error(`Gagal upload foto ${label}: ${uploadError.message}`);
       const { data: publicUrlData } = supabase.storage.from('bukti-foto').getPublicUrl(filePath);
       return publicUrlData.publicUrl;
