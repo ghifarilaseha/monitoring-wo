@@ -54,6 +54,7 @@ export default function DashboardPage() {
   const [workOrders, setWorkOrders] = useState([]);
   const [pelaksanaList, setPelaksanaList] = useState([]);
   const [selectedKategori, setSelectedKategori] = useState(null);
+  const [selectedStatus, setSelectedStatus] = useState(null);
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -261,15 +262,50 @@ export default function DashboardPage() {
 
       <div className="card">
         <h2>Perbandingan status WO</h2>
+        <p style={{ fontSize: 13, color: '#777', marginTop: -8 }}>Klik salah satu bagian untuk melihat daftar WO.</p>
         <ResponsiveContainer width="100%" height={280}>
           <PieChart>
-            <Pie data={statusData} dataKey="value" nameKey="name" outerRadius={100} label>
-              {statusData.map((entry, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+            <Pie
+              data={statusData}
+              dataKey="value"
+              nameKey="name"
+              outerRadius={100}
+              label
+              onClick={(entry) => setSelectedStatus(selectedStatus === entry.name ? null : entry.name)}
+              style={{ cursor: 'pointer' }}
+            >
+              {statusData.map((entry, i) => (
+                <Cell
+                  key={i}
+                  fill={COLORS[i % COLORS.length]}
+                  stroke={selectedStatus === entry.name ? '#1a1a1a' : 'none'}
+                  strokeWidth={selectedStatus === entry.name ? 2 : 0}
+                />
+              ))}
             </Pie>
             <Legend />
             <Tooltip />
           </PieChart>
         </ResponsiveContainer>
+
+        {selectedStatus && (
+          <div style={{ marginTop: 12 }}>
+            <h2>Daftar WO — status "{selectedStatus}" ({filteredWO.filter(wo => wo.status_wo === selectedStatus).length})</h2>
+            {filteredWO.filter(wo => wo.status_wo === selectedStatus).map(wo => (
+              <div key={wo.id} className="wo-item" onClick={() => window.location.href = `/admin/wo/${wo.id}`} style={{ cursor: 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <b>{wo.wo_code}</b> — {wo.deskripsi}
+                    <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                      {wo.area} · PIC: {wo.users?.nama || '-'} · {wo.tanggal_rencana}
+                    </div>
+                  </div>
+                  <span className={`badge ${wo.prioritas?.toLowerCase()}`}>{wo.prioritas}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -342,12 +378,59 @@ export default function DashboardPage() {
         {!kpi && <p style={{ color: '#777', marginTop: 16 }}>Pilih nama pelaksana untuk melihat KPI.</p>}
 
         {kpi && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginTop: 16 }}>
-            <KpiGauge label="Fullfillment WO" pct={kpi.fullfillment} />
-            <KpiGauge label="On Time WO" pct={kpi.onTime} />
-            <KpiGauge label="Time Efficiency" pct={kpi.timeEfficiency} />
-            <KpiGauge label="Effectivity Work Time" pct={kpi.effectivity} />
-          </div>
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginTop: 16 }}>
+              <KpiGauge label="Fullfillment WO" pct={kpi.fullfillment} />
+              <KpiGauge label="On Time WO" pct={kpi.onTime} />
+              <KpiGauge label="Time Efficiency" pct={kpi.timeEfficiency} />
+              <KpiGauge label="Effectivity Work Time" pct={kpi.effectivity} />
+            </div>
+
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '14px 16px', marginTop: 16, fontSize: 13, color: '#555', lineHeight: 1.8 }}>
+              <b style={{ color: '#1a1a1a', display: 'block', marginBottom: 6 }}>Cara perhitungan KPI</b>
+              <div><b>Fullfillment WO</b> = WO selesai (Approved) ÷ Total WO yang dibuat × 100%</div>
+              <div><b>On Time WO</b> = WO selesai tepat waktu (durasi aktual ≤ target) ÷ Total WO Approved × 100%</div>
+              <div><b>Time Efficiency</b> = Total jam target ÷ Total jam aktual × 100% <span style={{ color: '#aaa' }}>(nilai &gt;100% artinya lebih cepat dari target)</span></div>
+              <div><b>Effectivity Work Time</b> = Total jam aktual ÷ Total jam kerja (durasi shift × jumlah hari kerja unik) × 100%</div>
+            </div>
+
+            <div style={{ marginTop: 20 }}>
+              <h2 style={{ marginBottom: 10 }}>Detail WO ({kpi.woApproved.length} WO Approved)</h2>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#f4f5f7' }}>
+                      {['Kode WO', 'Tanggal', 'Deskripsi', 'Target (jam)', 'Aktual (jam)', 'On Time'].map(h => (
+                        <th key={h} style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #e2e4e8', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpi.woApproved.map(wo => {
+                      const actual = actualHours(wo);
+                      const target = wo.target_durasi_jam;
+                      const ontime = actual !== null && target ? actual <= target : null;
+                      return (
+                        <tr key={wo.id} style={{ borderBottom: '1px solid #f0f0f0', cursor: 'pointer' }}
+                          onClick={() => window.location.href = `/admin/wo/${wo.id}`}>
+                          <td style={{ padding: '8px 10px', fontWeight: 600 }}>{wo.wo_code}</td>
+                          <td style={{ padding: '8px 10px' }}>{wo.tanggal_rencana}</td>
+                          <td style={{ padding: '8px 10px' }}>{wo.deskripsi}</td>
+                          <td style={{ padding: '8px 10px' }}>{target ?? '-'}</td>
+                          <td style={{ padding: '8px 10px' }}>{actual !== null ? actual.toFixed(2) : '-'}</td>
+                          <td style={{ padding: '8px 10px' }}>
+                            {ontime === null ? '-' : ontime
+                              ? <span style={{ color: '#1e6b3c', fontWeight: 600 }}>✓ Ya</span>
+                              : <span style={{ color: '#b3261e', fontWeight: 600 }}>✗ Tidak</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

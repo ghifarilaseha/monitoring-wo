@@ -1,8 +1,11 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Monitoring Pekerjaan',
-  description: 'Monitoring pekerjaan harian tim',
+  title: 'Monitoring Pekerjaan — OTTO',
+  description: 'Utility Monitoring System',
+  icons: {
+    icon: '/otto-logo.png',
+  },
 };
 
 export default function RootLayout({ children }) {

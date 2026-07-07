@@ -31,7 +31,21 @@ export default function AdminPage() {
     support_ids: [],
   });
 
-  const [newUser, setNewUser] = useState({ nama: '', username: '', password: '', role: 'pelaksana' });
+  const [deskripsiSuggestions, setDeskripsiSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  async function handleDeskripsiChange(val) {
+    setForm({ ...form, deskripsi: val });
+    if (val.length < 3) { setDeskripsiSuggestions([]); setShowSuggestions(false); return; }
+    const { data } = await supabase
+      .from('work_orders')
+      .select('deskripsi')
+      .ilike('deskripsi', `%${val}%`)
+      .limit(6);
+    const unique = [...new Set((data || []).map(d => d.deskripsi))].filter(d => d !== val);
+    setDeskripsiSuggestions(unique);
+    setShowSuggestions(unique.length > 0);
+  }
   const [newArea, setNewArea] = useState('');
   const [newInstrumen, setNewInstrumen] = useState('');
   const [newKategori, setNewKategori] = useState('');
@@ -216,7 +230,30 @@ export default function AdminPage() {
               </select>
 
               <label>Deskripsi pekerjaan</label>
-              <textarea value={form.deskripsi} onChange={(e) => setForm({ ...form, deskripsi: e.target.value })} required />
+              <div style={{ position: 'relative' }}>
+                <textarea
+                  value={form.deskripsi}
+                  onChange={(e) => handleDeskripsiChange(e.target.value)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  onFocus={() => deskripsiSuggestions.length > 0 && setShowSuggestions(true)}
+                  required
+                />
+                {showSuggestions && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #d5d7db', borderRadius: 8, zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                    {deskripsiSuggestions.map((s, i) => (
+                      <div
+                        key={i}
+                        onMouseDown={() => { setForm({ ...form, deskripsi: s }); setShowSuggestions(false); }}
+                        style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 14, borderBottom: i < deskripsiSuggestions.length - 1 ? '1px solid #f0f0f0' : 'none' }}
+                        onMouseEnter={(e) => e.target.style.background = '#f4f5f7'}
+                        onMouseLeave={(e) => e.target.style.background = '#fff'}
+                      >
+                        {s}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <label>Kategori</label>
               <select value={form.kategori} onChange={(e) => setForm({ ...form, kategori: e.target.value })} required>

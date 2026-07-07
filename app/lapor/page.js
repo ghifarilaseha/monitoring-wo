@@ -163,10 +163,17 @@ export default function LaporPage() {
       return;
     }
 
+    // Konversi waktu lokal WIB (UTC+7) ke UTC sebelum disimpan ke Supabase
+    function toUTC(localDatetimeStr) {
+      if (!localDatetimeStr) return null;
+      const local = new Date(localDatetimeStr);
+      return new Date(local.getTime() - 7 * 60 * 60 * 1000).toISOString();
+    }
+
     const payload = {
       work_order_id: selected.id,
-      waktu_mulai: report.waktu_mulai || null,
-      waktu_selesai: report.waktu_selesai || null,
+      waktu_mulai: toUTC(report.waktu_mulai),
+      waktu_selesai: toUTC(report.waktu_selesai),
       keterangan: report.keterangan,
       dilaporkan_oleh: profile.id,
       foto_sebelum_url,

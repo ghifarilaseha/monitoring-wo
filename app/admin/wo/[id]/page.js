@@ -216,8 +216,8 @@ export default function WoDetailPage() {
       {report && (
         <div className="card">
           <h2>Hasil pekerjaan pelaksana</h2>
-          <div className="readonly-field"><b>Waktu mulai</b>{report.waktu_mulai ? new Date(report.waktu_mulai).toLocaleString('id-ID') : '-'}</div>
-          <div className="readonly-field"><b>Waktu selesai</b>{report.waktu_selesai ? new Date(report.waktu_selesai).toLocaleString('id-ID') : '-'}</div>
+          <div className="readonly-field"><b>Waktu mulai</b>{report.waktu_mulai ? new Date(report.waktu_mulai).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-'}</div>
+          <div className="readonly-field"><b>Waktu selesai</b>{report.waktu_selesai ? new Date(report.waktu_selesai).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-'}</div>
           <div className="readonly-field"><b>Lama pengerjaan aktual</b>{formatDuration(report.waktu_mulai, report.waktu_selesai)}</div>
           <div className="readonly-field"><b>Keterangan</b>{report.keterangan || '-'}</div>
 

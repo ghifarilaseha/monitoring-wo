@@ -43,12 +43,20 @@ export default function WaMessagePage() {
     catatan: '',
     keterangan_nbl: '',
     keterangan_cepha: '',
-    link_upload: 'https://monitoring-wo.vercel.app/',
+    link_upload: 'https://utility-otto.vercel.app/',
   });
 
   const [pesan, setPesan] = useState('');
 
   useEffect(() => {
+    // Load tugas per peran dari localStorage supaya tidak hilang saat refresh
+    const saved = {
+      operator_boiler_tugas: localStorage.getItem('wa_tugas_operator_boiler') || '',
+      operator_ws_tugas: localStorage.getItem('wa_tugas_operator_ws') || '',
+      teknisi_tugas: localStorage.getItem('wa_tugas_teknisi') || '',
+      kepala_regu_tugas: localStorage.getItem('wa_tugas_kepala_regu') || '',
+    };
+    setForm(prev => ({ ...prev, ...saved }));
     init();
   }, []);
 
@@ -232,7 +240,16 @@ export default function WaMessagePage() {
                 {users.map(u => <option key={u.id} value={u.id}>{u.nama}</option>)}
               </select>
               <label style={{ fontWeight: 400, fontSize: 13 }}>Tugas hari ini (poin 1) — {r.label}</label>
-              <input value={form[r.tugasKey]} onChange={(e) => setForm({ ...form, [r.tugasKey]: e.target.value })} placeholder={r.tugas} />
+              <input
+                value={form[r.tugasKey]}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm({ ...form, [r.tugasKey]: val });
+                  const lsKey = `wa_tugas_${r.key.replace('_id', '')}`;
+                  localStorage.setItem(lsKey, val);
+                }}
+                placeholder={r.tugas}
+              />
             </div>
           ))}
 
