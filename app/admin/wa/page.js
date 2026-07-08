@@ -80,7 +80,7 @@ export default function WaMessagePage() {
     setRiwayat(data || []);
   }
 
-  function namaUser(id) {
+  function getNama(id) {
     return users.find(u => u.id === id)?.nama || '';
   }
 
@@ -117,7 +117,7 @@ export default function WaMessagePage() {
     let text = `Tim Utility\n${formatTanggal(form.tanggal)} ${form.shift}\n\n`;
     text += `Personil\n`;
     rolesTerisi.forEach((r, i) => {
-      text += `${i + 1}. Pak ${namaUser(form[r.key])} (${r.tugas})\n`;
+      text += `${i + 1}. Pak ${getNama(form[r.key])} (${r.tugas})\n`;
     });
     if (form.catatan.trim()) {
       text += `${form.catatan.trim()}\n`;
@@ -127,7 +127,7 @@ export default function WaMessagePage() {
     const ringkasanPerRole = {};
     rolesTerisi.forEach((r) => {
       const picId = form[r.key];
-      text += `\nPak ${namaUser(picId)}\n`;
+      text += `\nPak ${getNama(picId)}\n`;
       const tugasManual = form[r.tugasKey]?.trim();
       const woNya = woPerOrang[picId] || [];
 
@@ -141,7 +141,7 @@ export default function WaMessagePage() {
       });
 
       // Simpan versi ringkas (nama + daftar) untuk dipakai di export tabel
-      ringkasanPerRole[r.key] = `${namaUser(picId)}\n` + daftarPekerjaan.map((l, i) => `${i + 1}. ${l}`).join('\n');
+      ringkasanPerRole[r.key] = `${getNama(picId)}\n` + daftarPekerjaan.map((l, i) => `${i + 1}. ${l}`).join('\n');
     });
 
     if (form.keterangan_nbl.trim()) text += `\nNBL: ${form.keterangan_nbl.trim()}`;
