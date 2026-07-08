@@ -8,6 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
+import Sidebar from '../components/Sidebar';
 
 const COLORS = ['#2952e3', '#e38b29', '#e34141', '#29a36b', '#8a5be3', '#e3297f', '#1e9be3'];
 
@@ -51,6 +52,7 @@ function KpiGauge({ label, pct }) {
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [namaUser, setNamaUser] = useState('');
   const [workOrders, setWorkOrders] = useState([]);
   const [pelaksanaList, setPelaksanaList] = useState([]);
   const [selectedKategori, setSelectedKategori] = useState(null);
@@ -70,8 +72,9 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push('/'); return; }
 
-    const { data: profile } = await supabase.from('users').select('role').eq('auth_id', user.id).single();
+    const { data: profile } = await supabase.from('users').select('nama, role').eq('auth_id', user.id).single();
     if (!profile || profile.role !== 'admin') { router.push('/lapor'); return; }
+    setNamaUser(profile.nama);
 
     const { data } = await supabase
       .from('work_orders')
@@ -110,7 +113,7 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  if (loading) return <div className="container">Memuat...</div>;
+  if (loading) return <div className="loading">Memuat...</div>;
 
   const filteredWO = workOrders.filter(wo => {
     if (dateFrom && wo.tanggal_rencana < dateFrom) return false;
@@ -236,11 +239,13 @@ export default function DashboardPage() {
   }
 
   return (
+    <div className="app-layout">
+      <Sidebar role="admin" namaUser={namaUser} />
+      <div className="main-content">
+        <div className="topbar">
+          <h1>Dashboard Monitoring</h1>
+        </div>
     <div className="container" style={{ maxWidth: 900 }}>
-      <div className="topbar">
-        <h1 style={{ marginBottom: 0 }}>Dashboard monitoring</h1>
-        <a href="/admin">Kembali ke admin</a>
-      </div>
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -432,6 +437,8 @@ export default function DashboardPage() {
             </div>
           </>
         )}
+      </div>
+    </div>
       </div>
     </div>
   );

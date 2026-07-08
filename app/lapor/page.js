@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
+import Sidebar from '../components/Sidebar';
 
 export default function LaporPage() {
   const router = useRouter();
@@ -218,19 +219,25 @@ export default function LaporPage() {
     return 'status-belum';
   }
 
-  if (!profile) return <div className="container">Memuat...</div>;
+  if (!profile) return <div className="loading">Memuat...</div>;
 
   return (
-    <div className="container">
+    <div className="app-layout">
+      <Sidebar role="pelaksana" namaUser={profile.nama} />
+      <div className="main-content">
+        <div className="topbar">
+          <h1>Halo, {profile.nama}</h1>
+        </div>
+        <div className="container">
       <div className="topbar">
         <h1 style={{ marginBottom: 0 }}>Halo, {profile.nama}</h1>
         <button className="secondary" onClick={handleLogout}>Keluar</button>
       </div>
 
       {!selected && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <button className={tab === 'daftar' ? '' : 'secondary'} onClick={() => setTab('daftar')}>Daftar WO</button>
-          <button className={tab === 'buat' ? '' : 'secondary'} onClick={() => setTab('buat')}>+ Buat WO (tidak terencana)</button>
+        <div className="tab-group">
+          <button className={tab === 'daftar' ? 'active' : ''} onClick={() => setTab('daftar')}>Daftar WO</button>
+          <button className={tab === 'buat' ? 'active' : ''} onClick={() => setTab('buat')}>+ Buat WO</button>
         </div>
       )}
 
@@ -268,21 +275,28 @@ export default function LaporPage() {
 
           {supportWOs.length > 0 && (
             <div className="card">
-              <h2>WO yang kamu terlibat sebagai support ({supportWOs.length})</h2>
+              <h2 style={{ color: 'var(--text-muted)' }}>Terlibat sebagai support ({supportWOs.length})</h2>
               {supportWOs.map(wo => (
-                <div key={wo.id} className="wo-item" style={{ opacity: 0.8 }}>
+                <div key={wo.id} className="wo-item support">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <b>{wo.wo_code}</b> — {wo.deskripsi}
-                      <span className="badge medium" style={{ marginLeft: 8 }}>Support</span>
-                      <div style={{ marginTop: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{wo.wo_code}</span>
+                        <span style={{ fontSize: 11, background: '#FFF3E6', color: 'var(--accent)', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>SUPPORT</span>
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4, color: 'var(--text)' }}>{wo.deskripsi}</div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                         <span className={`badge ${wo.prioritas?.toLowerCase()}`}>{wo.prioritas}</span>
-                        <span style={{ fontSize: 13, color: '#666', marginLeft: 8 }}>{wo.area} · {wo.tanggal_rencana}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{wo.area}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>·</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{wo.tanggal_rencana}</span>
                       </div>
                     </div>
                     <span className={`status-badge ${statusBadgeClass(wo.status_wo)}`}>{wo.status_wo}</span>
                   </div>
-                  <div style={{ fontSize: 13, color: '#777', marginTop: 6 }}>Laporan dikerjakan oleh PIC utama WO ini.</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                    Laporan dilakukan oleh PIC utama · kamu tidak perlu lapor untuk WO ini
+                  </div>
                 </div>
               ))}
             </div>
@@ -364,6 +378,8 @@ export default function LaporPage() {
           </form>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

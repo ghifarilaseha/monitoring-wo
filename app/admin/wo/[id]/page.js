@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
+import Sidebar from '../../../components/Sidebar';
 
 function formatDuration(mulai, selesai) {
   if (!mulai || !selesai) return '-';
@@ -19,12 +20,21 @@ export default function WoDetailPage() {
   const router = useRouter();
   const [wo, setWo] = useState(null);
   const [report, setReport] = useState(null);
+  const [namaUser, setNamaUser] = useState('Admin');
   const [remarks, setRemarks] = useState('');
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    load();
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: p } = await supabase.from('users').select('nama').eq('auth_id', user.id).single();
+        if (p) setNamaUser(p.nama);
+      }
+      load();
+    }
+    init();
   }, [id]);
 
   async function load() {
@@ -135,15 +145,22 @@ export default function WoDetailPage() {
     load();
   }
 
-  if (loading) return <div className="container">Memuat...</div>;
-  if (!wo) return <div className="container">Work order tidak ditemukan.</div>;
+  if (loading) return <div className="loading">Memuat...</div>;
+  if (!wo) return <div className="loading">Work order tidak ditemukan.</div>;
 
   return (
-    <div className="container">
-      <div className="topbar">
-        <h1 style={{ marginBottom: 0 }}>Lapor: {wo.wo_code}</h1>
-        <a href="/admin">Kembali</a>
-      </div>
+    <div className="app-layout">
+      <Sidebar role="admin" namaUser={namaUser} />
+      <div className="main-content">
+        <div className="topbar">
+          <a href="/admin" className="topbar-back">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Kembali
+          </a>
+          <h1 style={{ fontSize: 16 }}>{wo.wo_code}</h1>
+          <span className={`status-badge status-${wo.status_wo === 'Belum Selesai' ? 'belum' : wo.status_wo === 'Selesai' ? 'selesai' : 'approved'}`}>{wo.status_wo}</span>
+        </div>
+        <div className="container">
 
       {msg.text && <div className={msg.type}>{msg.text}</div>}
 
@@ -256,6 +273,8 @@ export default function WoDetailPage() {
           )}
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

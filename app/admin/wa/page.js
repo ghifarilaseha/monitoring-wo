@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../lib/supabase';
+import Sidebar from '../../components/Sidebar';
 
 const ROLE_DEFS = [
   { key: 'operator_boiler_id', tugasKey: 'operator_boiler_tugas', label: 'Operator Boiler', tugas: 'Back-up operasional boiler & PWT' },
@@ -25,6 +26,7 @@ function formatTanggal(dateStr) {
 
 export default function WaMessagePage() {
   const router = useRouter();
+  const [namaUser, setNamaUser] = useState('');
   const [users, setUsers] = useState([]);
   const [riwayat, setRiwayat] = useState([]);
   const [msg, setMsg] = useState({ type: '', text: '' });
@@ -63,8 +65,9 @@ export default function WaMessagePage() {
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push('/'); return; }
-    const { data: profile } = await supabase.from('users').select('role').eq('auth_id', user.id).single();
+    const { data: profile } = await supabase.from('users').select('nama, role').eq('auth_id', user.id).single();
     if (!profile || profile.role !== 'admin') { router.push('/lapor'); return; }
+    setNamaUser(profile.nama);
 
     const { data: userData } = await supabase.from('users').select('*').eq('role', 'pelaksana').order('nama');
     setUsers(userData || []);
@@ -211,11 +214,13 @@ export default function WaMessagePage() {
   }
 
   return (
+    <div className="app-layout">
+      <Sidebar role="admin" namaUser={namaUser} />
+      <div className="main-content">
+        <div className="topbar">
+          <h1>Pesan WhatsApp Harian</h1>
+        </div>
     <div className="container" style={{ maxWidth: 720 }}>
-      <div className="topbar">
-        <h1 style={{ marginBottom: 0 }}>Pesan WhatsApp harian</h1>
-        <a href="/admin">Kembali ke admin</a>
-      </div>
 
       {msg.text && <div className={msg.type}>{msg.text}</div>}
 
@@ -306,6 +311,8 @@ export default function WaMessagePage() {
           ))}
         </div>
       )}
+    </div>
+      </div>
     </div>
   );
 }

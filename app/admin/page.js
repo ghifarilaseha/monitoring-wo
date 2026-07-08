@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { supabase, usernameToEmail } from '../../lib/supabase';
+import Sidebar from '../components/Sidebar';
 
 export default function AdminPage() {
   const router = useRouter();
+  const [namaUser, setNamaUser] = useState('');
   const [users, setUsers] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [areas, setAreas] = useState([]);
@@ -51,7 +53,15 @@ export default function AdminPage() {
   const [newKategori, setNewKategori] = useState('');
 
   useEffect(() => {
-    loadData();
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push('/'); return; }
+      const { data: profile } = await supabase.from('users').select('nama, role').eq('auth_id', user.id).single();
+      if (!profile || profile.role !== 'admin') { router.push('/lapor'); return; }
+      setNamaUser(profile.nama);
+      loadData();
+    }
+    init();
   }, []);
 
   async function loadData() {
@@ -189,21 +199,21 @@ export default function AdminPage() {
     XLSX.writeFile(wb, `data-wo-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
-  return (
-    <div className="container">
-      <div className="topbar">
-        <h1 style={{ marginBottom: 0 }}>Admin</h1>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <a href="/admin/wa">Pesan WA</a>
-          <a href="/dashboard">Dashboard</a>
-          <button className="secondary" onClick={handleLogout}>Keluar</button>
-        </div>
-      </div>
+  if (!namaUser) return <div className="loading">Memuat...</div>;
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button className={tab === 'wo' ? '' : 'secondary'} onClick={() => setTab('wo')}>Work order</button>
-        <button className={tab === 'pelaksana' ? '' : 'secondary'} onClick={() => setTab('pelaksana')}>Tambah pelaksana</button>
-        <button className={tab === 'master' ? '' : 'secondary'} onClick={() => setTab('master')}>Master data</button>
+  return (
+    <div className="app-layout">
+      <Sidebar role="admin" namaUser={namaUser} />
+      <div className="main-content">
+        <div className="topbar">
+          <h1>Work Order</h1>
+        </div>
+        <div className="container">
+
+      <div className="tab-group" style={{ marginBottom: 16 }}>
+        <button className={tab === 'wo' ? 'active' : ''} onClick={() => setTab('wo')}>Work order</button>
+        <button className={tab === 'pelaksana' ? 'active' : ''} onClick={() => setTab('pelaksana')}>Tambah pelaksana</button>
+        <button className={tab === 'master' ? 'active' : ''} onClick={() => setTab('master')}>Master data</button>
       </div>
 
       {msg.text && <div className={msg.type}>{msg.text}</div>}
@@ -212,7 +222,7 @@ export default function AdminPage() {
         <>
           <div className="card">
             <h2>Buat work order baru</h2>
-            <p style={{ fontSize: 13, color: '#777', marginTop: -8 }}>Kode WO akan dibuat otomatis (format UT26-07-01).</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: -8 }}>Kode WO akan dibuat otomatis (format UTL26-07-01).</p>
             <form onSubmit={handleCreateWO}>
               <label>Tanggal rencana</label>
               <input type="date" value={form.tanggal_rencana} onChange={(e) => setForm({ ...form, tanggal_rencana: e.target.value })} required />
@@ -419,6 +429,8 @@ export default function AdminPage() {
           </div>
         </>
       )}
+        </div>
+      </div>
     </div>
   );
 }
