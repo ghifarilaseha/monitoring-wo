@@ -275,7 +275,7 @@ export default function DashboardPage() {
               dataKey="value"
               nameKey="name"
               outerRadius={100}
-              label
+              innerRadius={55}
               onClick={(entry) => setSelectedStatus(selectedStatus === entry.name ? null : entry.name)}
               style={{ cursor: 'pointer' }}
             >
@@ -288,8 +288,22 @@ export default function DashboardPage() {
                 />
               ))}
             </Pie>
-            <Legend />
-            <Tooltip />
+            <text
+              x="50%" y="46%" textAnchor="middle" dominantBaseline="middle"
+              style={{ fontSize: 28, fontWeight: 800, fill: 'var(--text)' }}
+            >
+              {filteredWO.length}
+            </text>
+            <text
+              x="50%" y="56%" textAnchor="middle" dominantBaseline="middle"
+              style={{ fontSize: 11, fill: 'var(--text-muted)', fontWeight: 600 }}
+            >
+              TOTAL WO
+            </text>
+            <Legend
+              formatter={(value, entry) => `${value} (${entry.payload.value})`}
+            />
+            <Tooltip formatter={(value, name) => [value, name]} />
           </PieChart>
         </ResponsiveContainer>
 
@@ -325,7 +339,7 @@ export default function DashboardPage() {
                 dataKey="value"
                 nameKey="name"
                 outerRadius={100}
-                label
+                innerRadius={55}
                 onClick={(entry) => setSelectedKategori(entry.name)}
                 style={{ cursor: 'pointer' }}
               >
@@ -338,8 +352,20 @@ export default function DashboardPage() {
                   />
                 ))}
               </Pie>
-              <Legend />
-              <Tooltip />
+              <text
+                x="50%" y="46%" textAnchor="middle" dominantBaseline="middle"
+                style={{ fontSize: 28, fontWeight: 800, fill: 'var(--text)' }}
+              >
+                {approvedWO.length}
+              </text>
+              <text
+                x="50%" y="56%" textAnchor="middle" dominantBaseline="middle"
+                style={{ fontSize: 11, fill: 'var(--text-muted)', fontWeight: 600 }}
+              >
+                APPROVED
+              </text>
+              <Legend formatter={(value, entry) => `${value} (${entry.payload.value})`} />
+              <Tooltip formatter={(value, name) => [value, name]} />
             </PieChart>
           </ResponsiveContainer>
         )}

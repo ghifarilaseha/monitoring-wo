@@ -25,11 +25,20 @@ export default function LaporPage() {
     init();
   }, []);
 
+  const [historyReports, setHistoryReports] = useState({});
+
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push('/'); return; }
 
     const { data: userProfile } = await supabase.from('users').select('*').eq('auth_id', user.id).single();
+
+    // Fix bug: kalau admin nyasar ke halaman ini, redirect ke admin
+    if (!userProfile || userProfile.role === 'admin') {
+      router.push('/admin');
+      return;
+    }
+
     setProfile(userProfile);
     loadWorkOrders(userProfile.id);
 
@@ -107,7 +116,31 @@ export default function LaporPage() {
 
     const { data } = await query;
     setHistoryWOs(data || []);
+    setHistoryReports({});
+    setSelectedHistory(null);
     setHistoryLoading(false);
+  }
+
+  async function handleExpandHistory(wo) {
+    // Toggle collapse
+    if (selectedHistory?.id === wo.id) {
+      setSelectedHistory(null);
+      return;
+    }
+
+    setSelectedHistory(wo);
+
+    // Hanya fetch report kalau WO sudah ada laporan (Selesai atau Approved)
+    if (wo.status_wo === 'Belum Selesai') return;
+    if (historyReports[wo.id]) return; // sudah pernah di-fetch
+
+    const { data: rep } = await supabase
+      .from('reports')
+      .select('keterangan, foto_sebelum_url, foto_sesudah_url')
+      .eq('work_order_id', wo.id)
+      .maybeSingle();
+
+    setHistoryReports(prev => ({ ...prev, [wo.id]: rep || {} }));
   }
 
   async function openReport(wo) {
@@ -418,9 +451,9 @@ export default function LaporPage() {
 
           {historyWOs.map(wo => (
             <div key={wo.id} className="wo-item" style={{ marginTop: 10, cursor: 'pointer' }}
-              onClick={() => setSelectedHistory(selectedHistory?.id === wo.id ? null : wo)}>
+              onClick={() => handleExpandHistory(wo)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
+                <div style={{ flex: 1, paddingRight: 8 }}>
                   <b>{wo.wo_code}</b> — {wo.deskripsi}
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                     {wo.area} · {wo.mesin_instrument || '-'} · PIC: {wo.users?.nama || '-'} · {wo.tanggal_rencana}
@@ -431,14 +464,40 @@ export default function LaporPage() {
                 </span>
               </div>
 
-              {selectedHistory?.id === wo.id && (
+              {selectedHistory?.id === wo.id && wo.status_wo !== 'Belum Selesai' && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                  <div className="readonly-field"><b>Kategori</b>{wo.kategori || '-'}</div>
-                  <div className="readonly-field"><b>Prioritas</b>{wo.prioritas || '-'}</div>
-                  <div className="readonly-field"><b>Target durasi</b>{wo.target_durasi_jam ? `${wo.target_durasi_jam} jam` : '-'}</div>
-                  <div className="readonly-field"><b>Sumber</b>{wo.sumber || '-'}</div>
-                  {wo.remarks && (
-                    <div className="readonly-field"><b>Catatan admin</b>{wo.remarks}</div>
+                  {historyReports[wo.id] === undefined ? (
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Memuat detail...</p>
+                  ) : (
+                    <>
+                      {historyReports[wo.id]?.keterangan && (
+                        <div className="readonly-field">
+                          <b>Keterangan pelaksana</b>
+                          {historyReports[wo.id].keterangan}
+                        </div>
+                      )}
+                      {(historyReports[wo.id]?.foto_sebelum_url || historyReports[wo.id]?.foto_sesudah_url) && (
+                        <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+                          {historyReports[wo.id]?.foto_sebelum_url && (
+                            <div>
+                              <b style={{ fontSize: 11, color: 'var(--text-light)', display: 'block', marginBottom: 4 }}>Sebelum</b>
+                              <img src={historyReports[wo.id].foto_sebelum_url} alt="Sebelum"
+                                style={{ width: 130, borderRadius: 8, border: '1px solid var(--border)' }} />
+                            </div>
+                          )}
+                          {historyReports[wo.id]?.foto_sesudah_url && (
+                            <div>
+                              <b style={{ fontSize: 11, color: 'var(--text-light)', display: 'block', marginBottom: 4 }}>Sesudah</b>
+                              <img src={historyReports[wo.id].foto_sesudah_url} alt="Sesudah"
+                                style={{ width: 130, borderRadius: 8, border: '1px solid var(--border)' }} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {!historyReports[wo.id]?.keterangan && !historyReports[wo.id]?.foto_sebelum_url && !historyReports[wo.id]?.foto_sesudah_url && (
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Tidak ada keterangan atau foto.</p>
+                      )}
+                    </>
                   )}
                 </div>
               )}
