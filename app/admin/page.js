@@ -132,6 +132,13 @@ export default function AdminPage() {
       return;
     }
 
+    // data.user bisa null kalau Supabase menunggu konfirmasi email
+    // (meski confirm email sudah dimatikan, tetap perlu dicek untuk keamanan)
+    if (!data?.user?.id) {
+      setMsg({ type: 'error', text: 'Gagal membuat akun auth. Pastikan fitur "Confirm email" sudah dimatikan di Supabase → Authentication → Providers → Email.' });
+      return;
+    }
+
     const { error: insertError } = await supabase.from('users').insert({
       nama: newUser.nama,
       role: newUser.role,

@@ -18,7 +18,7 @@ export default function LaporPage() {
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [submitting, setSubmitting] = useState(false);
 
-  const [report, setReport] = useState({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto_sebelum: null, foto_sesudah: null });
+  const [report, setReport] = useState({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto_sebelum: null, foto_sesudah: null, foto_sebelum_url_lama: null, foto_sesudah_url_lama: null });
   const [newWO, setNewWO] = useState({ area: '', mesin_instrument: '', deskripsi: '', kategori: '', prioritas: 'Medium' });
 
   useEffect(() => {
@@ -87,9 +87,57 @@ export default function LaporPage() {
     loadWorkOrders(profile.id);
   }
 
-  function openReport(wo) {
+  const [historyWOs, setHistoryWOs] = useState([]);
+  const [historyFrom, setHistoryFrom] = useState('');
+  const [historyTo, setHistoryTo] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState(null);
+
+  async function loadHistory() {
+    if (!historyFrom && !historyTo) return;
+    setHistoryLoading(true);
+
+    let query = supabase
+      .from('work_orders')
+      .select('*, users(nama)')
+      .order('tanggal_rencana', { ascending: false });
+
+    if (historyFrom) query = query.gte('tanggal_rencana', historyFrom);
+    if (historyTo) query = query.lte('tanggal_rencana', historyTo);
+
+    const { data } = await query;
+    setHistoryWOs(data || []);
+    setHistoryLoading(false);
+  }
+
+  async function openReport(wo) {
     setSelected(wo);
-    setReport({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto_sebelum: null, foto_sesudah: null });
+    // Pre-fill dengan data laporan lama kalau WO pernah dilaporkan sebelumnya
+    const { data: existingReport } = await supabase
+      .from('reports')
+      .select('*')
+      .eq('work_order_id', wo.id)
+      .maybeSingle();
+
+    if (existingReport) {
+      // Konversi UTC kembali ke format datetime-local (WIB UTC+7)
+      function toLocalInput(utcStr) {
+        if (!utcStr) return '';
+        const d = new Date(new Date(utcStr).getTime() + 7 * 60 * 60 * 1000);
+        return d.toISOString().slice(0, 16);
+      }
+      setReport({
+        waktu_mulai: toLocalInput(existingReport.waktu_mulai),
+        waktu_selesai: toLocalInput(existingReport.waktu_selesai),
+        keterangan: existingReport.keterangan || '',
+        foto_sebelum: null,
+        foto_sesudah: null,
+        foto_sebelum_url_lama: existingReport.foto_sebelum_url || null,
+        foto_sesudah_url_lama: existingReport.foto_sesudah_url || null,
+      });
+    } else {
+      setReport({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto_sebelum: null, foto_sesudah: null, foto_sebelum_url_lama: null, foto_sesudah_url_lama: null });
+    }
   }
 
   async function handleSubmit(e) {
@@ -146,14 +194,9 @@ export default function LaporPage() {
       return publicUrlData.publicUrl;
     }
 
-    const { data: existingReport } = await supabase
-      .from('reports')
-      .select('foto_sebelum_url, foto_sesudah_url')
-      .eq('work_order_id', selected.id)
-      .maybeSingle();
-
-    let foto_sebelum_url = existingReport?.foto_sebelum_url || null;
-    let foto_sesudah_url = existingReport?.foto_sesudah_url || null;
+    // Pakai foto lama dari state (sudah di-load saat openReport) sebagai fallback
+    let foto_sebelum_url = report.foto_sebelum_url_lama || null;
+    let foto_sesudah_url = report.foto_sesudah_url_lama || null;
 
     try {
       if (report.foto_sebelum) foto_sebelum_url = await uploadFoto(report.foto_sebelum, 'sebelum');
@@ -238,6 +281,7 @@ export default function LaporPage() {
         <div className="tab-group">
           <button className={tab === 'daftar' ? 'active' : ''} onClick={() => setTab('daftar')}>Daftar WO</button>
           <button className={tab === 'buat' ? 'active' : ''} onClick={() => setTab('buat')}>+ Buat WO</button>
+          <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>History WO</button>
         </div>
       )}
 
@@ -342,6 +386,67 @@ export default function LaporPage() {
         </div>
       )}
 
+      {!selected && tab === 'history' && (
+        <div className="card">
+          <h2>History Work Order Tim</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: -8 }}>
+            Pilih rentang tanggal untuk melihat riwayat WO seluruh tim.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <label>Dari</label>
+              <input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} />
+            </div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <label>Sampai</label>
+              <input type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button onClick={loadHistory} disabled={historyLoading || (!historyFrom && !historyTo)}>
+                {historyLoading ? 'Memuat...' : 'Tampilkan'}
+              </button>
+            </div>
+          </div>
+
+          {!historyFrom && !historyTo && (
+            <p style={{ color: 'var(--text-light)', fontSize: 13, marginTop: 16 }}>Pilih filter tanggal terlebih dahulu.</p>
+          )}
+
+          {(historyFrom || historyTo) && historyWOs.length === 0 && !historyLoading && (
+            <p style={{ color: 'var(--text-light)', fontSize: 13, marginTop: 16 }}>Tidak ada WO pada rentang tanggal ini.</p>
+          )}
+
+          {historyWOs.map(wo => (
+            <div key={wo.id} className="wo-item" style={{ marginTop: 10, cursor: 'pointer' }}
+              onClick={() => setSelectedHistory(selectedHistory?.id === wo.id ? null : wo)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <b>{wo.wo_code}</b> — {wo.deskripsi}
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    {wo.area} · {wo.mesin_instrument || '-'} · PIC: {wo.users?.nama || '-'} · {wo.tanggal_rencana}
+                  </div>
+                </div>
+                <span className={`status-badge status-${wo.status_wo === 'Belum Selesai' ? 'belum' : wo.status_wo === 'Selesai' ? 'selesai' : 'approved'}`}>
+                  {wo.status_wo}
+                </span>
+              </div>
+
+              {selectedHistory?.id === wo.id && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                  <div className="readonly-field"><b>Kategori</b>{wo.kategori || '-'}</div>
+                  <div className="readonly-field"><b>Prioritas</b>{wo.prioritas || '-'}</div>
+                  <div className="readonly-field"><b>Target durasi</b>{wo.target_durasi_jam ? `${wo.target_durasi_jam} jam` : '-'}</div>
+                  <div className="readonly-field"><b>Sumber</b>{wo.sumber || '-'}</div>
+                  {wo.remarks && (
+                    <div className="readonly-field"><b>Catatan admin</b>{wo.remarks}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {selected && (
         <div className="card">
           <h2>Lapor: {selected.wo_code}</h2>
@@ -366,9 +471,23 @@ export default function LaporPage() {
             <textarea value={report.keterangan} onChange={(e) => setReport({ ...report, keterangan: e.target.value })} placeholder="Kondisi pekerjaan, kendala, dsb" />
 
             <label>Foto sebelum pengerjaan</label>
+            {report.foto_sebelum_url_lama && !report.foto_sebelum && (
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Foto lama tersimpan:</span>
+                <img src={report.foto_sebelum_url_lama} alt="Sebelum lama" style={{ display: 'block', width: 120, borderRadius: 6, marginTop: 4 }} />
+                <span style={{ fontSize: 11, color: 'var(--text-light)' }}>Upload baru untuk mengganti, atau biarkan untuk pakai foto ini.</span>
+              </div>
+            )}
             <input type="file" accept="image/*" onChange={(e) => setReport({ ...report, foto_sebelum: e.target.files[0] })} />
 
             <label>Foto sesudah pengerjaan</label>
+            {report.foto_sesudah_url_lama && !report.foto_sesudah && (
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Foto lama tersimpan:</span>
+                <img src={report.foto_sesudah_url_lama} alt="Sesudah lama" style={{ display: 'block', width: 120, borderRadius: 6, marginTop: 4 }} />
+                <span style={{ fontSize: 11, color: 'var(--text-light)' }}>Upload baru untuk mengganti, atau biarkan untuk pakai foto ini.</span>
+              </div>
+            )}
             <input type="file" accept="image/*" onChange={(e) => setReport({ ...report, foto_sesudah: e.target.files[0] })} />
 
             <div style={{ display: 'flex', gap: 8 }}>
