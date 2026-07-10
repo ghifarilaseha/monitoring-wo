@@ -51,6 +51,7 @@ export default function AdminPage() {
   const [newArea, setNewArea] = useState('');
   const [newInstrumen, setNewInstrumen] = useState('');
   const [newKategori, setNewKategori] = useState('');
+  const [newUser, setNewUser] = useState({ nama: '', username: '', password: '', role: 'pelaksana' });
 
   useEffect(() => {
     async function init() {
