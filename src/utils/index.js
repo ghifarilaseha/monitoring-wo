@@ -12,3 +12,4 @@ export * from './kpiUtils';
 export * from './waUtils';
 export * from './exportUtils';
 export * from './imageUtils';
+export * from './exifUtils';

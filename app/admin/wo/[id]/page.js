@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../components/Sidebar';
+import { formatDate, formatTime, formatDuration } from '../../../../src/utils/dateUtils';
 
 function formatDuration(mulai, selesai) {
   if (!mulai || !selesai) return '-';
@@ -238,18 +239,82 @@ export default function WoDetailPage() {
           <div className="readonly-field"><b>Lama pengerjaan aktual</b>{formatDuration(report.waktu_mulai, report.waktu_selesai)}</div>
           <div className="readonly-field"><b>Keterangan</b>{report.keterangan || '-'}</div>
 
+          {/* Foto dengan metadata EXIF */}
           <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
             <div>
               <b style={{ fontSize: 12, color: '#777', display: 'block', marginBottom: 6 }}>Sebelum</b>
               {report.foto_sebelum_url
-                ? <img src={report.foto_sebelum_url} alt="Sebelum" style={{ width: 200, borderRadius: 8 }} />
+                ? <img src={report.foto_sebelum_url} alt="Sebelum" style={{ width: 200, borderRadius: 8, display: 'block' }} />
                 : <span style={{ color: '#aaa', fontSize: 13 }}>Tidak ada foto</span>}
+              {report.foto_sebelum_url && (
+                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  <div><b>Diambil</b></div>
+                  {report.foto_sebelum_taken_at ? (
+                    <><div>{formatDate(report.foto_sebelum_taken_at)}</div><div>{formatTime(report.foto_sebelum_taken_at)}</div></>
+                  ) : <div>-</div>}
+                  {report.foto_sebelum_uploaded_at && (
+                    <><div style={{ marginTop: 4 }}><b>Diunggah</b></div>
+                    <div>{formatDate(report.foto_sebelum_uploaded_at)}</div>
+                    <div>{formatTime(report.foto_sebelum_uploaded_at)}</div></>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <b style={{ fontSize: 12, color: '#777', display: 'block', marginBottom: 6 }}>Sesudah</b>
               {report.foto_sesudah_url
-                ? <img src={report.foto_sesudah_url} alt="Sesudah" style={{ width: 200, borderRadius: 8 }} />
+                ? <img src={report.foto_sesudah_url} alt="Sesudah" style={{ width: 200, borderRadius: 8, display: 'block' }} />
                 : <span style={{ color: '#aaa', fontSize: 13 }}>Tidak ada foto</span>}
+              {report.foto_sesudah_url && (
+                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  <div><b>Diambil</b></div>
+                  {report.foto_sesudah_taken_at ? (
+                    <><div>{formatDate(report.foto_sesudah_taken_at)}</div><div>{formatTime(report.foto_sesudah_taken_at)}</div></>
+                  ) : <div>-</div>}
+                  {report.foto_sesudah_uploaded_at && (
+                    <><div style={{ marginTop: 4 }}><b>Diunggah</b></div>
+                    <div>{formatDate(report.foto_sesudah_uploaded_at)}</div>
+                    <div>{formatTime(report.foto_sesudah_uploaded_at)}</div></>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Photo Time Tracker */}
+          <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase' }}>
+              Photo Time Tracker
+            </div>
+            {(report.foto_sebelum_taken_at && report.foto_sesudah_taken_at) ? (
+              <>
+                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2 }}>BEFORE</div>
+                    <div style={{ fontSize: 13 }}>{formatDate(report.foto_sebelum_taken_at)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{formatTime(report.foto_sebelum_taken_at)}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-light)', fontSize: 18 }}>→</div>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2 }}>AFTER</div>
+                    <div style={{ fontSize: 13 }}>{formatDate(report.foto_sesudah_taken_at)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{formatTime(report.foto_sesudah_taken_at)}</div>
+                  </div>
+                </div>
+                <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '12px 16px', display: 'inline-block' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>ESTIMASI DURASI</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)' }}>
+                    {formatDuration(report.foto_sebelum_taken_at, report.foto_sesudah_taken_at)}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                Data metadata foto belum tersedia
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: 'var(--text-light)', marginTop: 10 }}>
+              Durasi dihitung berdasarkan metadata EXIF foto Before dan After. Hasil ini hanya sebagai referensi monitoring pekerjaan.
             </div>
           </div>
 

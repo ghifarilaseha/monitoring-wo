@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import Sidebar from '../components/Sidebar';
+import { readExifTakenAt } from '../../src/utils/exifUtils';
 
 export default function LaporPage() {
   const router = useRouter();
@@ -18,7 +19,12 @@ export default function LaporPage() {
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [submitting, setSubmitting] = useState(false);
 
-  const [report, setReport] = useState({ waktu_mulai: '', waktu_selesai: '', keterangan: '', foto_sebelum: null, foto_sesudah: null, foto_sebelum_url_lama: null, foto_sesudah_url_lama: null });
+  const [report, setReport] = useState({
+    waktu_mulai: '', waktu_selesai: '', keterangan: '',
+    foto_sebelum: null, foto_sesudah: null,
+    foto_sebelum_url_lama: null, foto_sesudah_url_lama: null,
+    foto_sebelum_taken_at: null, foto_sesudah_taken_at: null,
+  });
   const [newWO, setNewWO] = useState({ area: '', mesin_instrument: '', deskripsi: '', kategori: '', prioritas: 'Medium' });
 
   useEffect(() => {
@@ -247,6 +253,7 @@ export default function LaporPage() {
       return localDatetimeStr + ':00+07:00';
     }
 
+    const now = new Date().toISOString();
     const payload = {
       work_order_id: selected.id,
       waktu_mulai: toWIBISO(report.waktu_mulai),
@@ -255,6 +262,15 @@ export default function LaporPage() {
       dilaporkan_oleh: profile.id,
       foto_sebelum_url,
       foto_sesudah_url,
+      // EXIF metadata — null kalau foto tidak punya metadata atau foto tidak diganti
+      ...(report.foto_sebelum && {
+        foto_sebelum_taken_at: report.foto_sebelum_taken_at || null,
+        foto_sebelum_uploaded_at: now,
+      }),
+      ...(report.foto_sesudah && {
+        foto_sesudah_taken_at: report.foto_sesudah_taken_at || null,
+        foto_sesudah_uploaded_at: now,
+      }),
     };
 
     const { error: reportError } = await supabase
@@ -537,7 +553,12 @@ export default function LaporPage() {
                 <span style={{ fontSize: 11, color: 'var(--text-light)' }}>Upload baru untuk mengganti, atau biarkan untuk pakai foto ini.</span>
               </div>
             )}
-            <input type="file" accept="image/*" onChange={(e) => setReport({ ...report, foto_sebelum: e.target.files[0] })} />
+            <input type="file" accept="image/*" onChange={async (e) => {
+              const file = e.target.files[0];
+              if (!file) return;
+              const taken = await readExifTakenAt(file);
+              setReport({ ...report, foto_sebelum: file, foto_sebelum_taken_at: taken });
+            }} />
 
             <label>Foto sesudah pengerjaan</label>
             {report.foto_sesudah_url_lama && !report.foto_sesudah && (
@@ -547,7 +568,12 @@ export default function LaporPage() {
                 <span style={{ fontSize: 11, color: 'var(--text-light)' }}>Upload baru untuk mengganti, atau biarkan untuk pakai foto ini.</span>
               </div>
             )}
-            <input type="file" accept="image/*" onChange={(e) => setReport({ ...report, foto_sesudah: e.target.files[0] })} />
+            <input type="file" accept="image/*" onChange={async (e) => {
+              const file = e.target.files[0];
+              if (!file) return;
+              const taken = await readExifTakenAt(file);
+              setReport({ ...report, foto_sesudah: file, foto_sesudah_taken_at: taken });
+            }} />
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="submit" disabled={submitting}>{submitting ? 'Mengirim...' : 'Kirim laporan'}</button>
