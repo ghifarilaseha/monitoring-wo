@@ -153,7 +153,7 @@ export default function LaporPage() {
       .maybeSingle();
 
     if (existingReport) {
-      // Konversi UTC kembali ke format datetime-local (WIB UTC+7)
+      // Konversi UTC dari Supabase ke format datetime-local dalam WIB (UTC+7)
       function toLocalInput(utcStr) {
         if (!utcStr) return '';
         const d = new Date(new Date(utcStr).getTime() + 7 * 60 * 60 * 1000);
@@ -240,17 +240,17 @@ export default function LaporPage() {
       return;
     }
 
-    // Konversi waktu lokal WIB (UTC+7) ke UTC sebelum disimpan ke Supabase
-    function toUTC(localDatetimeStr) {
+    // Konversi datetime-local input ke ISO string dengan timezone WIB (+07:00)
+    // supaya Supabase menyimpannya dengan benar sebagai UTC
+    function toWIBISO(localDatetimeStr) {
       if (!localDatetimeStr) return null;
-      const local = new Date(localDatetimeStr);
-      return new Date(local.getTime() - 7 * 60 * 60 * 1000).toISOString();
+      return localDatetimeStr + ':00+07:00';
     }
 
     const payload = {
       work_order_id: selected.id,
-      waktu_mulai: toUTC(report.waktu_mulai),
-      waktu_selesai: toUTC(report.waktu_selesai),
+      waktu_mulai: toWIBISO(report.waktu_mulai),
+      waktu_selesai: toWIBISO(report.waktu_selesai),
       keterangan: report.keterangan,
       dilaporkan_oleh: profile.id,
       foto_sebelum_url,
