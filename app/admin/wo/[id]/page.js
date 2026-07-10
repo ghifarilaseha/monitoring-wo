@@ -6,15 +6,7 @@ import { supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../components/Sidebar';
 import { formatDate, formatTime, formatDuration } from '../../../../src/utils/dateUtils';
 
-function formatDuration(mulai, selesai) {
-  if (!mulai || !selesai) return '-';
-  const ms = new Date(selesai) - new Date(mulai);
-  if (ms <= 0) return '-';
-  const totalMinutes = Math.round(ms / 60000);
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  return `${h} jam ${m} menit`;
-}
+
 
 export default function WoDetailPage() {
   const { id } = useParams();
