@@ -21,7 +21,6 @@
  */
 export async function readExifTakenAt(file) {
   try {
-    // Dynamic import so exifr is not bundled server-side
     const exifr = (await import('exifr')).default;
     const exif = await exifr.parse(file, ['DateTimeOriginal']);
 
@@ -29,17 +28,25 @@ export async function readExifTakenAt(file) {
 
     const dt = exif.DateTimeOriginal;
 
-    // DateTimeOriginal is a JS Date object from exifr
-    // but it has no timezone — treat as WIB (UTC+7)
     if (dt instanceof Date && !isNaN(dt)) {
-      // Subtract 7 hours to convert assumed WIB → UTC for storage
-      const utc = new Date(dt.getTime() - 7 * 60 * 60 * 1000);
-      return utc.toISOString();
+      // exifr returns DateTimeOriginal as a JS Date interpreted in LOCAL time.
+      // Since the app is always used in WIB (UTC+7), the Date object already
+      // represents the correct local time — we just need to store it as UTC.
+      // We do NOT subtract 7 hours here; instead we treat the local time
+      // as WIB and convert to UTC by appending +07:00 manually.
+      const pad = (n) => String(n).padStart(2, '0');
+      const y = dt.getFullYear();
+      const mo = pad(dt.getMonth() + 1);
+      const d = pad(dt.getDate());
+      const h = pad(dt.getHours());
+      const mi = pad(dt.getMinutes());
+      const s = pad(dt.getSeconds());
+      // Treat as WIB → convert to UTC ISO string
+      return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}+07:00`).toISOString();
     }
 
     return null;
   } catch {
-    // EXIF not available, file format not supported, or library error
     return null;
   }
 }
