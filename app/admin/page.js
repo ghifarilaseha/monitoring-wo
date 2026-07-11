@@ -298,11 +298,16 @@ export default function AdminPage() {
               </select>
 
               <label>Support (opsional, bisa pilih lebih dari satu)</label>
-              <div style={{ border: '1px solid #d5d7db', borderRadius: 8, padding: '8px 12px' }}>
+              <div style={{ border: '1.5px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
                 {users.filter(u => u.role === 'pelaksana' && u.id !== form.pic_id).map(u => (
-                  <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontWeight: 400 }}>
+                  <label key={u.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4,
+                    fontWeight: 400, fontSize: 14, textTransform: 'none',
+                    letterSpacing: 'normal', color: 'var(--text)', cursor: 'pointer',
+                  }}>
                     <input
                       type="checkbox"
+                      style={{ width: 'auto', margin: 0 }}
                       checked={form.support_ids.includes(u.id)}
                       onChange={(e) => {
                         const next = e.target.checked
