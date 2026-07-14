@@ -47,6 +47,7 @@ export default function LaporPage() {
 
     setProfile(userProfile);
     loadWorkOrders(userProfile.id);
+    registerPushSubscription(userProfile.id);
 
     const { data: areaData } = await supabase.from('master_area').select('*').order('nama');
     setAreas(areaData || []);
@@ -54,6 +55,54 @@ export default function LaporPage() {
     setInstrumens(instrumenData || []);
     const { data: kategoriData } = await supabase.from('master_kategori').select('*').order('nama');
     setKategoris(kategoriData || []);
+  }
+
+  /**
+   * Mendaftarkan browser ini untuk menerima push notification.
+   * Hanya berjalan di browser yang mendukung Service Worker & Push API.
+   */
+  async function registerPushSubscription(userId) {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await saveSubscription(userId, existing);
+        return;
+      }
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(
+          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        ),
+      });
+
+      await saveSubscription(userId, subscription);
+    } catch (err) {
+      // Tidak fatal — aplikasi tetap berjalan normal tanpa notifikasi
+      console.warn('Push subscription gagal:', err.message);
+    }
+  }
+
+  async function saveSubscription(userId, subscription) {
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, subscription }),
+    });
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
   }
 
   async function loadWorkOrders(userId) {

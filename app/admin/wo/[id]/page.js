@@ -52,6 +52,25 @@ export default function WoDetailPage() {
       return;
     }
 
+    // Kirim push notification ke pelaksana PIC saat WO di-reject
+    if (newStatus === 'Belum Selesai' && wo?.pic_id) {
+      try {
+        await fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: wo.pic_id,
+            title: 'Work Order Perlu Direvisi',
+            body: `${wo.wo_code} — ${wo.deskripsi}${remarks ? `\nCatatan: ${remarks}` : ''}`,
+            url: '/lapor',
+          }),
+        });
+      } catch (pushErr) {
+        // Tidak fatal — WO tetap ter-reject meski notifikasi gagal
+        console.warn('Push notification gagal:', pushErr.message);
+      }
+    }
+
     setMsg({ type: 'success', text: newStatus === 'Approved' ? 'WO disetujui.' : 'WO dikembalikan ke pelaksana untuk revisi.' });
     setTimeout(() => router.push('/admin'), 800);
   }
